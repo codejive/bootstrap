@@ -3,7 +3,7 @@
 # --- Configuration (Non-Overridable) ---
 APP_NAME="APP"
 APP_DIR=".APP"
-RELEASE_URL="https://example.com/releases/foo-latest.tgz"
+RELEASE_URL="https://example.com/releases/.../foo-latest.tgz"
 # ---------------------------------------
 
 # 1. Setup essential variables needed for config loading
@@ -21,14 +21,8 @@ LOG_LEVEL=
 load_config() {
     local config_file="$1"
     if [ -f "$config_file" ]; then
-        LOG "Loading configuration from $config_file..."
-        # Use a temporary file to strip comments and source the clean output
-        local temp_config
-        temp_config=$(mktemp)
-        # Strip lines starting with # or containing only whitespace, then source
-        grep -v '^\s*#' "$config_file" | grep -v '^\s*$' > "$temp_config"
-        source "$temp_config" 2>/dev/null
-        rm "$temp_config"
+        #LOG "Loading configuration from $config_file..."
+        source "$config_file" 2>/dev/null
     fi
 }
 
@@ -50,7 +44,7 @@ LAST_CHECKED_FILE="$CACHE_DIR/last_checked"
 LOG() {
     # Only echo the log message if LOG_LEVEL is not empty
     if [ -n "$LOG_LEVEL" ]; then
-        echo "[Installer] $1"
+        echo "[$APP_NAME Bootstrap] $1"
     fi
 }
 

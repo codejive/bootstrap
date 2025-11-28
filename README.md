@@ -24,24 +24,25 @@ Configuration is managed in two ways:
 
 These variables are defined directly at the top of the scripts and **should not** be overridden by bootstrap.cfg.
 
-| Variable         | Default Value (Example) | Description                                                                      |
-|:-----------------|:------------------------|:---------------------------------------------------------------------------------|
-| **NAME**         | APP                     | The short name of the application.                                               |
-| **APP_HOME**     | ~/.APP                  | The installation directory of the application.                              |
-| **RELEASE_URL** | https://example.com/... | The direct download URL for the release archive (.tgz for Bash, .zip for Batch). |
+| Variable        | Default Value (Example)   | Description                                                                      |
+|:----------------|:--------------------------|:---------------------------------------------------------------------------------|
+| **APP_NAME**    | `APP`                     | The short name of the application.                                               |
+| **APP_DIR**     | `.APP`                    | The installation directory name of the application.                              |
+| **RELEASE_URL** | `https://example.com/...` | The direct download URL for the release archive (.tgz for Bash, .zip for Batch). |
 
 ### **2\. Overridable Variables**
 
 These variables have defaults set within the script but can be overridden by placing them in one of the following configuration files (in order of precedence):
 
-1. `$HOME/.\<NAME\>/bootstrap.cfg` (User-wide defaults)
-2. `./.\<NAME\>/bootstrap.cfg` (Folder-specific overrides)
+1. `$HOME/<APP_DIR>/bootstrap.cfg` (User-wide defaults)
+2. `./<APP_DIR>/bootstrap.cfg` (Local overrides)
 
-The format for the configuration files is simple KEY=VALUE, with comments starting with \#.
+The format for the configuration files is simple `KEY=VALUE`, with comments starting with `#`.
 
-| Variable          | Default Value | Description |
-|:------------------| :---- | :---- |
-| **UPDATE_PERIOD** | 3 | The number of days after which an update check must be performed. If the last\_checked file is older than this period, the script will attempt to contact the server. |
+| Variable          | Default Value | Description                                                                                                                                                           |
+|:------------------|:--------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **UPDATE_PERIOD** | 3             | The number of days after which an update check must be performed. If the last\_checked file is older than this period, the script will attempt to contact the server. |
+| **LOG_LEVEL**     | \<empty>      | Logging level. Default empty/silent; set to anything, e.g., 'DEBUG', to enable logging                                                                               |
 
 **Example bootstrap.cfg content:**
 
@@ -65,8 +66,8 @@ UPDATE_PERIOD=7
 
 ## **Usage**
 
-1. **Configure:** Edit the `NAME` and `RELEASE_URL` variables (and possibly `APP_HOME` if you want a different name than the default) at the top of both scripts (`APPw` and `APPw.bat`).
-2. **Rename & Place:** Rename the scripts to match your application's name. Common usage is to have the name of the scripts end in the letter “w” to indicate they are “wrapper” scripts (e.g., if NAME=foo, rename to foow and foow.bat).
+1. **Configure:** Edit the `NAME` and `RELEASE_URL` variables (and possibly `APP_DIR` if you want a different name than the default) at the top of both scripts (`APPw` and `APPw.bat`).
+2. **Rename:** Rename the scripts to match your application's name. Common usage is to have the name of the scripts end in the letter “w” to indicate they are “wrapper” scripts (e.g., if `APP_NAME=foo`, rename to `foow` and `foow.bat`).
 3. **Execute:** Place the scripts in a directory where you want the command to be available and run it:
 
 ```
@@ -77,4 +78,24 @@ UPDATE_PERIOD=7
 .\foow.cmd /flag
 ```
 
-The first time you run it, the application will download and install itself to the user’s home directory ($HOME/.foo). Subsequent runs will check for updates if the configured period has passed.
+The first time you run it, the application will download and install itself to the user’s home directory (`$HOME/$APP_DIR`). Subsequent runs will check for updates if the configured period has passed.
+
+### Force new version check
+
+To force an update check, you can delete the `last_checked` file located in the application's installation directory, eg:
+
+```
+rm $HOME/.APP/cache/last_checked
+```
+
+Then the next execution of the script will check for updates.
+
+### Force update/reinstall
+
+To force a complete reinstallation of the application, delete the application's `cache` directory, eg:
+
+```
+rm -rf $HOME/.APP/cache
+```
+
+Then the next execution of the script will download and install the application afresh.

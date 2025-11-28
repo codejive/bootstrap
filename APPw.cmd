@@ -4,18 +4,20 @@ setlocal enableExtensions enableDelayedExpansion
 rem --- Configuration (Non-Overridable) ---
 set APP_NAME=APP
 set APP_DIR=.APP
-set RELEASE_URL=https://example.com/releases/foo-latest.zip
+set RELEASE_URL=https://example.com/releases/.../foo-latest.zip
 rem ---------------------------------------
 
 rem 1. Setup essential variables needed for config loading
 set "HOME_DIR=%USERPROFILE%"
-set "APP_HOME=%HOME_DIR%\.%APP_DIR%"
+set "APP_HOME=%HOME_DIR%\%APP_DIR%"
 
 rem 2. Define default overridable variables
 rem The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
 set UPDATE_PERIOD=3
 rem Logging level (default empty/silent; set to anything, e.g., 'DEBUG', to enable logging)
 set LOG_LEVEL=
+
+goto :START
 
 rem --- Configuration Loading ---
 rem Helper subroutine to load configuration from a file
@@ -26,35 +28,16 @@ rem Helper subroutine to load configuration from a file
         rem /F "tokens=1,2 delims==" splits lines by '='. 'skip=0' is default. 'eol=#' handles comments.
         for /f "tokens=1* delims== eol=#" %%a in ('type "%CONFIG_FILE%"') do (
             rem %%a is the key (before '=') and %%b is the value (after '=')
-            rem Handle specific known variable overrides here
-            if /I "%%a" == "UPDATE_PERIOD" (
-                set UPDATE_PERIOD=%%b
-            )
-            rem Add other overridable variables here if needed
+            set %%a=%%b
         )
     )
     goto :eof
-
-rem Load user-wide configuration (if exists)
-call :LOAD_CONFIG "%APP_HOME%\bootstrap.cfg"
-
-rem Load local configuration (if exists)
-call :LOAD_CONFIG ".\%APP_DIR%\bootstrap.cfg"
-
-rem -----------------------------
-
-rem 3. Define the remaining path variables using the (potentially overridden) NAME/UPDATE_PERIOD
-set "CACHE_DIR=%APP_HOME%\cache"
-set "BIN_DIR=%APP_HOME%\bin"
-set "APP_EXE=%BIN_DIR%\%APP_NAME%.cmd"
-set "ARCHIVE_FILE=%CACHE_DIR%\release.zip"
-set "LAST_CHECKED_FILE=%CACHE_DIR%\last_checked"
 
 rem Helper function for logging
 :LOG
     rem Only echo the log message if LOG_LEVEL is not empty
     if not "%LOG_LEVEL%"=="" (
-        echo [Installer] %~1
+        echo [%APP_NAME% Bootstrap] %~1
     )
     goto :eof
 
@@ -177,6 +160,23 @@ rem --- Core Logic Functions ---
     )
     goto :eof
 
+:START
+
+rem Load user-wide configuration (if exists)
+call :LOAD_CONFIG "%APP_HOME%\bootstrap.cfg"
+
+rem Load local configuration (if exists)
+call :LOAD_CONFIG ".\%APP_DIR%\bootstrap.cfg"
+
+rem -----------------------------
+
+rem 3. Define the remaining path variables using the (potentially overridden) NAME/UPDATE_PERIOD
+set "CACHE_DIR=%APP_HOME%\cache"
+set "BIN_DIR=%APP_HOME%\bin"
+set "APP_EXE=%BIN_DIR%\%APP_NAME%.cmd"
+set "ARCHIVE_FILE=%CACHE_DIR%\release.zip"
+set "LAST_CHECKED_FILE=%CACHE_DIR%\last_checked"
+
 rem --- Execution Flow ---
 
 rem 1. Installation/Update Check
@@ -200,7 +200,7 @@ if /I NOT "%SCRIPT_DIR_CLEAN%" EQU "%BIN_DIR%" (
     call :LOG "Handing over execution to the installed application: %APP_EXE%"
     rem Use 'start' to run the application and allow the current script to exit immediately.
     rem %* passes all arguments to the new process.
-    start "" "%APP_EXE%" %*
+    "%APP_EXE%" %*
     goto :eof
 )
 
