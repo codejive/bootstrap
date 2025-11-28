@@ -13,6 +13,8 @@ APP_HOME="$HOME_DIR/$APP_DIR"
 # 2. Define default overridable variables
 # The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
 UPDATE_PERIOD=3
+# Logging level (default empty/silent; set to anything, e.g., 'DEBUG', to enable logging)
+LOG_LEVEL=
 
 # --- Configuration Loading ---
 # Function to load configuration variables from a file
@@ -46,7 +48,10 @@ ARCHIVE_FILE="$CACHE_DIR/release.tgz"
 LAST_CHECKED_FILE="$CACHE_DIR/last_checked"
 
 LOG() {
-    echo "[Installer] $1"
+    # Only echo the log message if LOG_LEVEL is not empty
+    if [ -n "$LOG_LEVEL" ]; then
+        echo "[Installer] $1"
+    fi
 }
 
 # Function to get the last modification timestamp of a file

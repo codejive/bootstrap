@@ -14,6 +14,8 @@ set "APP_HOME=%HOME_DIR%\.%APP_DIR%"
 rem 2. Define default overridable variables
 rem The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
 set UPDATE_PERIOD=3
+rem Logging level (default empty/silent; set to anything, e.g., 'DEBUG', to enable logging)
+set LOG_LEVEL=
 
 rem --- Configuration Loading ---
 rem Helper subroutine to load configuration from a file
@@ -50,7 +52,10 @@ set "LAST_CHECKED_FILE=%CACHE_DIR%\last_checked"
 
 rem Helper function for logging
 :LOG
-    echo [Installer] %~1
+    rem Only echo the log message if LOG_LEVEL is not empty
+    if not "%LOG_LEVEL%"=="" (
+        echo [Installer] %~1
+    )
     goto :eof
 
 rem --- Core Logic Functions ---
