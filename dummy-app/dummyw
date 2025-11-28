@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # --- Configuration (Non-Overridable) ---
-APP_NAME="APP"
-APP_DIR=".APP"
+APP_NAME="dummy"
+APP_DIR=".dummy-app"
 DOWNLOAD_URL="https://example.com/releases/.../foo-latest.tgz"
 # ---------------------------------------
 
@@ -194,15 +194,20 @@ if [ "$CURRENT_SCRIPT_PATH" != "$BIN_EXE_PATH" ]; then
     exec "$APP_EXE" "$@"
 fi
 
-# If we are running from $BIN_DIR/$APP_NAME, the script continues below this line.
+##########################################
+# BELOW THIS POINT YOU PUT YOUR OWN CODE #
+##########################################
+
 # This part is the "whatever might be there" section.
 LOG "Running inside the application's environment ($BIN_DIR)."
-# Example: start the application with special debugging flags, or run cleanup tasks.
+
 # Your application's main logic or final execution step would go here if this script
-# *is* the final executable.
+# *is* the final executable. Otherwise you can call out to other scripts or binaries as needed.
+
 # For simplicity, we just print a success message and exit.
-echo "--- Application $APP_NAME is running ---"
-echo "Arguments received: $@"
+echo "------------------------------------"
+echo "This is application: $APP_NAME"
+echo "Arguments received : $@"
 echo "------------------------------------"
 
 exit 0

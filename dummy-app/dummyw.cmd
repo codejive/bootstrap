@@ -2,8 +2,8 @@
 setlocal enableExtensions enableDelayedExpansion
 
 rem --- Configuration (Non-Overridable) ---
-set APP_NAME=APP
-set APP_DIR=.APP
+set APP_NAME=dummy
+set APP_DIR=.dummy-app
 set DOWNLOAD_URL=https://example.com/releases/.../foo-latest.zip
 rem ---------------------------------------
 
@@ -204,11 +204,20 @@ if /I NOT "%SCRIPT_DIR_CLEAN%" EQU "%BIN_DIR%" (
     goto :eof
 )
 
-rem If we are running from %BIN_DIR%, the script continues below this line.
+rem ##########################################
+rem # BELOW THIS POINT YOU PUT YOUR OWN CODE #
+rem ##########################################
+
+rem This part is the "whatever might be there" section.
 call :LOG "Running inside the application's environment (%BIN_DIR%)."
-rem This is the "whatever might be there" section.
-echo --- Application %APP_NAME% is running ---
-echo Arguments received: %*
+
+rem Your application's main logic or final execution step would go here if this script
+rem *is* the final executable. Otherwise you can call out to other scripts or binaries as needed.
+
+rem For simplicity, we just print a success message and exit.
+echo ------------------------------------
+echo This is application: %APP_NAME%
+echo Arguments received : %*
 echo ------------------------------------
 
 endlocal
