@@ -4,7 +4,7 @@ setlocal enableExtensions enableDelayedExpansion
 rem --- Configuration (Non-Overridable) ---
 set APP_NAME=APP
 set APP_DIR=.APP
-set RELEASE_URL=https://example.com/releases/.../foo-latest.zip
+set DOWNLOAD_URL=https://example.com/releases/.../foo-latest.zip
 rem ---------------------------------------
 
 rem 1. Setup essential variables needed for config loading
@@ -53,12 +53,12 @@ rem --- Core Logic Functions ---
     )
 
     rem 2. Download the release archive
-    call :LOG "Downloading %RELEASE_URL%..."
+    call :LOG "Downloading %DOWNLOAD_URL%..."
     rem The --remote-time (-r) option ensures the local file date matches the remote server's date.
     rem curl -o saves the output to the specified file
-    curl -fsSL --remote-time "%RELEASE_URL%" -o "%ARCHIVE_FILE%"
+    curl -fsSL --remote-time "%DOWNLOAD_URL%" -o "%ARCHIVE_FILE%"
     if errorlevel 1 (
-        call :LOG "Error: Download failed for %RELEASE_URL%."
+        call :LOG "Error: Download failed for %DOWNLOAD_URL%."
         exit /b 1
     )
 
@@ -71,10 +71,10 @@ rem --- Core Logic Functions ---
     rem Create a temporary directory for unpacking
     mkdir "%APP_HOME%\temp_install"
 
-    rem Use the built-in 'tar' utility for ZIP extraction
+    rem Use the built-in 'tar' utility for ZIP/TAR.GZ extraction
     tar -xf "%ARCHIVE_FILE%" -C "%APP_HOME%\temp_install"
     if errorlevel 1 (
-        call :LOG "Error: Failed to unpack archive %ARCHIVE_FILE%. Check if it's a valid ZIP."
+        call :LOG "Error: Failed to unpack archive %ARCHIVE_FILE%. Check if it's a valid ZIP or TAR.GZ file."
         rmdir /s /q "%APP_HOME%\temp_install"
         exit /b 1
     )
@@ -133,7 +133,7 @@ rem --- Core Logic Functions ---
         call :LOG "Attempting conditional download..."
         rem -z "%ARCHIVE_FILE%" tells curl to only download if the remote file is newer than the local one.
         rem --remote-time (-r) ensures the new file uses the remote timestamp.
-        curl -fsSL --remote-time -z "%ARCHIVE_FILE%" "%RELEASE_URL%" -o "%ARCHIVE_FILE%"
+        curl -fsSL --remote-time -z "%ARCHIVE_FILE%" "%DOWNLOAD_URL%" -o "%ARCHIVE_FILE%"
         
         set "CURL_EXIT_CODE=%ERRORLEVEL%"
         

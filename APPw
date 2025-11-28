@@ -3,7 +3,7 @@
 # --- Configuration (Non-Overridable) ---
 APP_NAME="APP"
 APP_DIR=".APP"
-RELEASE_URL="https://example.com/releases/.../foo-latest.tgz"
+DOWNLOAD_URL="https://example.com/releases/.../foo-latest.tgz"
 # ---------------------------------------
 
 # 1. Setup essential variables needed for config loading
@@ -74,10 +74,10 @@ perform_full_install() {
     mkdir -p "$CACHE_DIR" || { LOG "Error: Could not create cache directory $CACHE_DIR"; exit 1; }
 
     # 2. Download the release archive
-    LOG "Downloading $RELEASE_URL..."
+    LOG "Downloading $DOWNLOAD_URL..."
     # The --remote-time (-r) option ensures the local file date matches the remote server's date.
-    if ! curl -fsSL --remote-time "$RELEASE_URL" -o "$ARCHIVE_FILE"; then
-        LOG "Error: Download failed for $RELEASE_URL."
+    if ! curl -fsSL --remote-time "$DOWNLOAD_URL" -o "$ARCHIVE_FILE"; then
+        LOG "Error: Download failed for $DOWNLOAD_URL."
         exit 1
     fi
 
@@ -136,7 +136,7 @@ handle_update_check() {
         LOG "Attempting conditional download..."
 
         # Use -w "%{http_code}" to capture the status code
-        HTTP_CODE=$(curl -w "%{http_code}" -sSL --remote-time -z "$ARCHIVE_FILE" "$RELEASE_URL" -o "$ARCHIVE_FILE")
+        HTTP_CODE=$(curl -w "%{http_code}" -sSL --remote-time -z "$ARCHIVE_FILE" "$DOWNLOAD_URL" -o "$ARCHIVE_FILE")
 
         # 3. Check for successful download (HTTP 200) or successful conditional skip (HTTP 304 Not Modified)
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then

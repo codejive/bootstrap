@@ -24,11 +24,11 @@ Configuration is managed in two ways:
 
 These variables are defined directly at the top of the scripts and **should not** be overridden by bootstrap.cfg.
 
-| Variable        | Default Value (Example)   | Description                                                                      |
-|:----------------|:--------------------------|:---------------------------------------------------------------------------------|
-| **APP_NAME**    | `APP`                     | The short name of the application.                                               |
-| **APP_DIR**     | `.APP`                    | The installation directory name of the application.                              |
-| **RELEASE_URL** | `https://example.com/...` | The direct download URL for the release archive (.tgz for Bash, .zip for Batch). |
+| Variable         | Default Value (Example)   | Description                                                                              |
+|:-----------------|:--------------------------|:-----------------------------------------------------------------------------------------|
+| **APP_NAME**     | `APP`                     | The short name of the application.                                                       |
+| **APP_DIR**      | `.APP`                    | The installation directory name of the application.                                      |
+| **DOWNLOAD_URL** | `https://example.com/...` | The direct download URL for the release archive (.tgz for Bash, .zip or .tgz for Batch). |
 
 ### **2\. Overridable Variables**
 
@@ -66,7 +66,7 @@ UPDATE_PERIOD=7
 
 ## **Usage**
 
-1. **Configure:** Edit the `NAME` and `RELEASE_URL` variables (and possibly `APP_DIR` if you want a different name than the default) at the top of both scripts (`APPw` and `APPw.bat`).
+1. **Configure:** Edit the `NAME` and `DOWNLOAD_URL` variables (and possibly `APP_DIR` if you want a different name than the default) at the top of both scripts (`APPw` and `APPw.bat`).
 2. **Rename:** Rename the scripts to match your application's name. Common usage is to have the name of the scripts end in the letter “w” to indicate they are “wrapper” scripts (e.g., if `APP_NAME=foo`, rename to `foow` and `foow.bat`).
 3. **Execute:** Place the scripts in a directory where you want the command to be available and run it:
 
