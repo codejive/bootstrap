@@ -35,7 +35,7 @@ load_config "./$APP_DIR/bootstrap.cfg"
 # -----------------------------
 
 # 3. Define the remaining path variables using the (potentially overridden) APP_NAME/UPDATE_PERIOD
-CACHE_DIR="$APP_HOME/cache"
+CACHE_DIR="$APP_HOME/_cache"
 BIN_DIR="$APP_HOME/bin"
 APP_EXE="$BIN_DIR/$APP_NAME"
 ARCHIVE_FILE="$CACHE_DIR/release.tgz"

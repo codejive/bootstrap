@@ -171,7 +171,7 @@ call :LOAD_CONFIG ".\%APP_DIR%\bootstrap.cfg"
 rem -----------------------------
 
 rem 3. Define the remaining path variables using the (potentially overridden) NAME/UPDATE_PERIOD
-set "CACHE_DIR=%APP_HOME%\cache"
+set "CACHE_DIR=%APP_HOME%\_cache"
 set "BIN_DIR=%APP_HOME%\bin"
 set "APP_EXE=%BIN_DIR%\%APP_NAME%.cmd"
 set "ARCHIVE_FILE=%CACHE_DIR%\release.zip"

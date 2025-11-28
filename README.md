@@ -64,6 +64,36 @@ UPDATE_PERIOD=7
 
 * **Requirements:** Modern Windows (10/11) with `curl` and `tar` available in the PATH.
 
+## **Preparation**
+
+You will need a hosting location for your application’s release archive (a `.tgz` file for the Bash script, and a `.zip` or `.tgz` file for the Batch script). This archive can contain any files you want but it should have at least the two script files in a `bin` folder.
+This is the minimum contents of the archive:
+
+```
+bin/
+  APP
+  APP.cmd
+```
+
+but you can also include additional files and folders as needed. The following is an example of a more complete archive structure:
+
+```
+bin/
+  APP
+  APP.cmd
+  other_executable_files
+lib/
+  supporting_libraries
+docs/
+  documentation_files
+README.md
+```
+
+**IMPORTANT:**
+1. **Permissions:** Ensure that the `APP` file inside the `bin` folder has executable permissions set (especially for Linux/macOS).
+2. **Naming:** It is required that scripts in the `bin` are named the same as the variable `NAME` found inside them (see [Usage](#usage) below).
+3. **No conflicts:** Do _not_ include the `bootstrap.cfg` file inside the archive, as it would override user configurations on each update. And no folder or file named `_cache` should exist either.
+
 ## **Usage**
 
 1. **Configure:** Edit the `NAME` and `DOWNLOAD_URL` variables (and possibly `APP_DIR` if you want a different name than the default) at the top of both scripts (`APPw` and `APPw.bat`).
