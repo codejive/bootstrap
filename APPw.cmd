@@ -1,17 +1,50 @@
 @echo off
-setlocal
+setlocal enableExtensions enableDelayedExpansion
 
-rem --- Configuration ---
-set NAME=APP
-set "APP_HOME=%HOME_DIR%\.%NAME%"
+rem --- Configuration (Non-Overridable) ---
+set APP_NAME=APP
+set APP_DIR=.APP
 set RELEASE_URL=https://example.com/releases/foo-latest.zip
-rem ---------------------
+rem ---------------------------------------
 
-rem --- Environment Setup ---
+rem 1. Setup essential variables needed for config loading
 set "HOME_DIR=%USERPROFILE%"
+set "APP_HOME=%HOME_DIR%\.%APP_DIR%"
+
+rem 2. Define default overridable variables
+rem The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
+set UPDATE_PERIOD=3
+
+rem --- Configuration Loading ---
+rem Helper subroutine to load configuration from a file
+:LOAD_CONFIG
+    set "CONFIG_FILE=%~1"
+    if exist "%CONFIG_FILE%" (
+        call :LOG "Loading configuration from %CONFIG_FILE%..."
+        rem /F "tokens=1,2 delims==" splits lines by '='. 'skip=0' is default. 'eol=#' handles comments.
+        for /f "tokens=1* delims== eol=#" %%a in ('type "%CONFIG_FILE%"') do (
+            rem %%a is the key (before '=') and %%b is the value (after '=')
+            rem Handle specific known variable overrides here
+            if /I "%%a" == "UPDATE_PERIOD" (
+                set UPDATE_PERIOD=%%b
+            )
+            rem Add other overridable variables here if needed
+        )
+    )
+    goto :eof
+
+rem Load user-wide configuration (if exists)
+call :LOAD_CONFIG "%APP_HOME%\bootstrap.cfg"
+
+rem Load local configuration (if exists)
+call :LOAD_CONFIG ".\%APP_DIR%\bootstrap.cfg"
+
+rem -----------------------------
+
+rem 3. Define the remaining path variables using the (potentially overridden) NAME/UPDATE_PERIOD
 set "CACHE_DIR=%APP_HOME%\cache"
 set "BIN_DIR=%APP_HOME%\bin"
-set "APP_EXE=%BIN_DIR%\%NAME%.cmd"
+set "APP_EXE=%BIN_DIR%\%APP_NAME%.cmd"
 set "ARCHIVE_FILE=%CACHE_DIR%\release.zip"
 set "LAST_CHECKED_FILE=%CACHE_DIR%\last_checked"
 
@@ -59,12 +92,6 @@ rem --- Core Logic Functions ---
     )
 
     rem Move contents from the temporary unpack location to the application home
-    rem This requires navigating the directory structure, which is complex in Batch.
-    rem We will assume the archive root needs to be moved into APP_HOME.
-    
-    rem Move everything from temp_install (including the content of any single root folder)
-    rem Note: This assumes the ZIP contains a single root folder or direct files.
-    
     rem Use XCOPY to move files/directories
     call :LOG "Moving contents to %APP_HOME%"
     
@@ -83,35 +110,29 @@ rem --- Core Logic Functions ---
 :HANDLE_UPDATE_CHECK
     set "UPDATE_NEEDED=false"
     
-    rem Check file age: older than 3 days? (or doesn't exist)
+    rem Check file age: older than %UPDATE_PERIOD% days? (or doesn't exist)
     rem forfiles exits with ERRORLEVEL 0 if files matching the criteria are found.
-    rem /D -3 means files older than 3 days ago.
-    forfiles /P "%CACHE_DIR%" /M last_checked /D -3 /C "cmd /c echo Found > nul" 2>nul
+    rem /D -N means files older than N days ago.
+    forfiles /P "%CACHE_DIR%" /M last_checked /D -%UPDATE_PERIOD% /C "cmd /c echo Found > nul" 2>nul
     if errorlevel 1 (
-        rem ERRORLEVEL 1 means no files older than 3 days were found (either file is new, or file doesn't exist)
-        rem We need the inverse logic: We want to update if it DOESN'T exist OR if it IS older.
+        rem ERRORLEVEL 1 means no files older than %UPDATE_PERIOD% days were found (either file is new, or file doesn't exist)
         if not exist "%LAST_CHECKED_FILE%" (
             set "UPDATE_NEEDED=true"
         ) else (
-            rem Re-check: forfiles /D -N checks for files older than N days.
-            rem If no file is found, the file is either missing or newer than N days.
-            rem The initial check is flawed for the "newer than" case.
-            
-            rem Simpler, more reliable check: find if any file named last_checked *exists*.
-            rem If it exists, use forfiles to check if it's OLDER than 3 days.
-            set "IS_OLD=true"
-            forfiles /P "%CACHE_DIR%" /M last_checked /D -3 /C "cmd /c set IS_OLD=false" 2>nul
+            rem Check for files older than %UPDATE_PERIOD% days
+            set "IS_OLD=false"
+            forfiles /P "%CACHE_DIR%" /M last_checked /D -%UPDATE_PERIOD% /C "cmd /c set IS_OLD=true" 2>nul
             if "%IS_OLD%"=="true" (
-                call :LOG "Checking for updates (last check older than 3 days or file missing)..."
+                call :LOG "Checking for updates (last check older than %UPDATE_PERIOD% days or file missing)..."
                 set "UPDATE_NEEDED=true"
             ) else (
-                call :LOG "Skipping update check (last check within 3 days)."
+                call :LOG "Skipping update check (last check within %UPDATE_PERIOD% days)."
                 goto :eof
             )
         )
     ) else (
-        rem The file exists and IS older than 3 days, so ERRORLEVEL 0 was returned.
-        call :LOG "Checking for updates (last check older than 3 days)..."
+        rem The file exists and IS older than %UPDATE_PERIOD% days, so ERRORLEVEL 0 was returned.
+        call :LOG "Checking for updates (last check older than %UPDATE_PERIOD% days)..."
         set "UPDATE_NEEDED=true"
     )
     
@@ -133,8 +154,8 @@ rem --- Core Logic Functions ---
             set "NEW_SIZE=0"
             if exist "%ARCHIVE_FILE%" for %%F in ("%ARCHIVE_FILE%") do set NEW_SIZE=%%~zF
             
-            if not "%OLD_SIZE%"=="%NEW_SIZE%" (
-                call :LOG "New release downloaded (size changed: Old=%OLD_SIZE%, New=%NEW_SIZE%). Unpacking update."
+            if not "!OLD_SIZE!"=="!NEW_SIZE!" (
+                call :LOG "New release downloaded (size changed: Old=!OLD_SIZE!, New=!NEW_SIZE!). Unpacking update."
                 rem 4. Unpack the new release
                 call :PERFORM_FULL_INSTALL
             ) else (
@@ -181,7 +202,7 @@ if /I NOT "%SCRIPT_DIR_CLEAN%" EQU "%BIN_DIR%" (
 rem If we are running from %BIN_DIR%, the script continues below this line.
 call :LOG "Running inside the application's environment (%BIN_DIR%)."
 rem This is the "whatever might be there" section.
-echo --- Application %NAME% is running ---
+echo --- Application %APP_NAME% is running ---
 echo Arguments received: %*
 echo ------------------------------------
 

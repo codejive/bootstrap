@@ -1,16 +1,47 @@
 #!/bin/bash
 
-# --- Configuration ---
-NAME="APP"
-APP_HOME="$HOME_DIR/.$NAME"
+# --- Configuration (Non-Overridable) ---
+APP_NAME="APP"
+APP_DIR=".APP"
 RELEASE_URL="https://example.com/releases/foo-latest.tgz"
-# ---------------------
+# ---------------------------------------
 
-# Automatically determine the user's home directory
+# 1. Setup essential variables needed for config loading
 HOME_DIR="$HOME"
+APP_HOME="$HOME_DIR/$APP_DIR"
+
+# 2. Define default overridable variables
+# The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
+UPDATE_PERIOD=3
+
+# --- Configuration Loading ---
+# Function to load configuration variables from a file
+load_config() {
+    local config_file="$1"
+    if [ -f "$config_file" ]; then
+        LOG "Loading configuration from $config_file..."
+        # Use a temporary file to strip comments and source the clean output
+        local temp_config
+        temp_config=$(mktemp)
+        # Strip lines starting with # or containing only whitespace, then source
+        grep -v '^\s*#' "$config_file" | grep -v '^\s*$' > "$temp_config"
+        source "$temp_config" 2>/dev/null
+        rm "$temp_config"
+    fi
+}
+
+# Load user-wide configuration (if exists)
+load_config "$APP_HOME/bootstrap.cfg"
+
+# Load local configuration (if exists)
+load_config "./$APP_DIR/bootstrap.cfg"
+
+# -----------------------------
+
+# 3. Define the remaining path variables using the (potentially overridden) APP_NAME/UPDATE_PERIOD
 CACHE_DIR="$APP_HOME/cache"
 BIN_DIR="$APP_HOME/bin"
-APP_EXE="$BIN_DIR/$NAME"
+APP_EXE="$BIN_DIR/$APP_NAME"
 ARCHIVE_FILE="$CACHE_DIR/release.tgz"
 LAST_CHECKED_FILE="$CACHE_DIR/last_checked"
 
@@ -39,7 +70,7 @@ get_file_mtime() {
 
 perform_full_install() {
     LOG "Application not found or update forced. Starting download and install..."
-    
+
     # 1. Setup directories
     mkdir -p "$CACHE_DIR" || { LOG "Error: Could not create cache directory $CACHE_DIR"; exit 1; }
 
@@ -63,7 +94,7 @@ perform_full_install() {
         exit 1
     fi
 
-    # Find the top-level directory inside the archive (often matches the NAME)
+    # Find the top-level directory inside the archive (often matches the APP_NAME)
     # Move the contents of the single directory inside the archive to the app home
     # Assuming the archive unpacks to a single directory (e.g., 'foo-v1.0')
     UNPACKED_ROOT=$(find "$APP_HOME/temp_install" -mindepth 1 -maxdepth 1 -type d -print -quit)
@@ -80,7 +111,7 @@ perform_full_install() {
         mv "$APP_HOME/temp_install"/* "$APP_HOME" 2>/dev/null
         mv "$APP_HOME/temp_install"/.* "$APP_HOME" 2>/dev/null # Move hidden files/dirs too
     fi
-    
+
     # Clean up the temporary directory
     rm -rf "$APP_HOME/temp_install"
 
@@ -91,28 +122,28 @@ perform_full_install() {
 
 
 handle_update_check() {
-    # 1. Check file age: older than 3 days?
+    # 1. Check file age: older than $UPDATE_PERIOD days?
     # find command exits 0 and prints if a file matching criteria is found.
-    # -mtime +3 means modification time is older than 3 full 24-hour periods.
-    if [ ! -f "$LAST_CHECKED_FILE" ] || find "$LAST_CHECKED_FILE" -mtime +3 -print -quit 2>/dev/null; then
-        LOG "Checking for updates (last check older than 3 days or file missing)..."
-        
+    # -mtime +N means modification time is older than N full 24-hour periods.
+    if [ ! -f "$LAST_CHECKED_FILE" ] || find "$LAST_CHECKED_FILE" -mtime +$UPDATE_PERIOD -print -quit 2>/dev/null; then
+        LOG "Checking for updates (last check older than $UPDATE_PERIOD days or file missing)..."
+
         # Record the modification time of the current archive before potential download
         local OLD_MTIME=$(get_file_mtime "$ARCHIVE_FILE")
-        
+
         # 2. Conditional Download
         # -z "$ARCHIVE_FILE" tells curl to only download if the remote file is newer than the local one.
         # --remote-time (-r) ensures the new file uses the remote timestamp.
         LOG "Attempting conditional download..."
-        
+
         # Use -w "%{http_code}" to capture the status code
         HTTP_CODE=$(curl -w "%{http_code}" -sSL --remote-time -z "$ARCHIVE_FILE" "$RELEASE_URL" -o "$ARCHIVE_FILE")
-        
+
         # 3. Check for successful download (HTTP 200) or successful conditional skip (HTTP 304 Not Modified)
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             # Download successful (200 OK)
             LOG "New release downloaded."
-            
+
             # Record the new modification time of the archive
             local NEW_MTIME=$(get_file_mtime "$ARCHIVE_FILE")
 
@@ -136,7 +167,7 @@ handle_update_check() {
         touch "$LAST_CHECKED_FILE"
         LOG "Update check complete. Timestamp updated."
     else
-        LOG "Skipping update check (last check within 3 days)."
+        LOG "Skipping update check (last check within $UPDATE_PERIOD days)."
     fi
 }
 
@@ -164,14 +195,14 @@ if [ "$CURRENT_SCRIPT_PATH" != "$BIN_EXE_PATH" ]; then
     exec "$APP_EXE" "$@"
 fi
 
-# If we are running from $BIN_DIR/$NAME, the script continues below this line.
+# If we are running from $BIN_DIR/$APP_NAME, the script continues below this line.
 # This part is the "whatever might be there" section.
 LOG "Running inside the application's environment ($BIN_DIR)."
 # Example: start the application with special debugging flags, or run cleanup tasks.
 # Your application's main logic or final execution step would go here if this script
 # *is* the final executable.
 # For simplicity, we just print a success message and exit.
-echo "--- Application $NAME is running ---"
+echo "--- Application $APP_NAME is running ---"
 echo "Arguments received: $@"
 echo "------------------------------------"
 
