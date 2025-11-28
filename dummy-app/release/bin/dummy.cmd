@@ -4,7 +4,7 @@ setlocal enableExtensions enableDelayedExpansion
 rem --- Configuration (Non-Overridable) ---
 set APP_NAME=dummy
 set APP_DIR=.dummy-app
-set DOWNLOAD_URL=https://example.com/releases/.../foo-latest.zip
+set DOWNLOAD_URL=https://github.com/codejive/bootstrap/releases/latest/download/release.tgz
 rem ---------------------------------------
 
 rem 1. Setup essential variables needed for config loading

@@ -3,7 +3,7 @@
 # --- Configuration (Non-Overridable) ---
 APP_NAME="dummy"
 APP_DIR=".dummy-app"
-DOWNLOAD_URL="https://example.com/releases/.../foo-latest.tgz"
+DOWNLOAD_URL="https://github.com/codejive/bootstrap/releases/latest/download/release.tgz"
 # ---------------------------------------
 
 # 1. Setup essential variables needed for config loading
