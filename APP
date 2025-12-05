@@ -6,14 +6,14 @@ APP_DIR=".APP"
 DOWNLOAD_URL="https://example.com/releases/.../foo-latest.tgz"
 # ---------------------------------------
 
-# 1. Setup essential variables needed for config loading
+# Setup essential variables needed for config loading
 HOME_DIR="$HOME"
 APP_HOME="$HOME_DIR/$APP_DIR"
 
-# 2. Define default overridable variables
+# Define default overridable variables
 # The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
 UPDATE_PERIOD=3
-# Logging level (default empty/silent; set to anything, e.g., 'DEBUG', to enable logging)
+# Logging level (0-ERROR, 1-WARN, 2-INFO, 3-DEBUG, empty disables logging)
 LOG_LEVEL=
 
 # --- Configuration Loading ---
@@ -34,154 +34,117 @@ load_config "./$APP_DIR/bootstrap.cfg"
 
 # -----------------------------
 
-# 3. Define the remaining path variables using the (potentially overridden) APP_NAME/UPDATE_PERIOD
+# Define the remaining path variables using the (potentially overridden) APP_NAME/UPDATE_PERIOD
 CACHE_DIR="$APP_HOME/_cache"
-BIN_DIR="$APP_HOME/bin"
+HAP_DIR="$APP_HOME/app"
+BIN_DIR="$HAP_DIR/bin"
 APP_EXE="$BIN_DIR/$APP_NAME"
 ARCHIVE_FILE="$CACHE_DIR/release.tgz"
 LAST_CHECKED_FILE="$CACHE_DIR/last_checked"
 
-LOG() {
-    # Only echo the log message if LOG_LEVEL is not empty
-    if [ -n "$LOG_LEVEL" ]; then
-        echo "[$APP_NAME Bootstrap] $1"
+# Helper function for logging
+LOG_ERROR() {
+    if [[ -n "$LOG_LEVEL" && "0" -ge "$LOG_LEVEL" ]]; then
+      echo "ERROR: $1"
     fi
 }
 
-# Function to get the last modification timestamp of a file
-get_file_mtime() {
-    # Use stat command for reliable cross-platform (Linux/Mac) date retrieval
-    # Linux: 'stat -c %Y' for seconds since epoch
-    # macOS: 'stat -f %m' for seconds since epoch
-    if command -v gstat &> /dev/null; then
-        # Use GNU stat if available (e.g., via MacPorts/Homebrew)
-        gstat -c %Y "$1" 2>/dev/null
-    elif uname | grep -q "Darwin"; then
-        # macOS
-        stat -f %m "$1" 2>/dev/null
-    else
-        # Standard Linux
-        stat -c %Y "$1" 2>/dev/null
+LOG_INFO() {
+    if [[ -n "$LOG_LEVEL" && "2" -ge "$LOG_LEVEL" ]]; then
+      echo "[$APP_NAME INFO] $1"
     fi
 }
 
 # --- Core Logic Functions ---
 
-perform_full_install() {
-    LOG "Application not found or update forced. Starting download and install..."
-
-    # 1. Setup directories
-    mkdir -p "$CACHE_DIR" || { LOG "Error: Could not create cache directory $CACHE_DIR"; exit 1; }
-
-    # 2. Download the release archive
-    LOG "Downloading $DOWNLOAD_URL..."
-    # The --remote-time (-r) option ensures the local file date matches the remote server's date.
-    if ! curl -fsSL --remote-time "$DOWNLOAD_URL" -o "$ARCHIVE_FILE"; then
-        LOG "Error: Download failed for $DOWNLOAD_URL."
-        exit 1
-    fi
-
-    # 3. Unpack and clean up
-    LOG "Unpacking application..."
+unpack_and_install() {
+    # Unpack and clean up
+    LOG_INFO "Unpacking application..."
     # Remove existing installation directory if it exists before unpacking
     rm -rf "$APP_HOME/temp_install"
     mkdir -p "$APP_HOME/temp_install"
 
     if ! tar -xzf "$ARCHIVE_FILE" -C "$APP_HOME/temp_install"; then
-        LOG "Error: Failed to unpack archive $ARCHIVE_FILE."
+        LOG_ERROR "Failed to unpack archive $ARCHIVE_FILE."
         rm -rf "$APP_HOME/temp_install"
-        exit 1
+        return 1
     fi
 
-    # Find the top-level directory inside the archive (often matches the APP_NAME)
-    # Move the contents of the single directory inside the archive to the app home
-    # Assuming the archive unpacks to a single directory (e.g., 'foo-v1.0')
-    UNPACKED_ROOT=$(find "$APP_HOME/temp_install" -mindepth 1 -maxdepth 1 -type d -print -quit)
+    # Move all contents of temp_install to APP_HOME/app.new
+    LOG_INFO "Moving contents to $HAP_DIR"
+    mv "$APP_HOME/temp_install" "$HAP_DIR.new"
 
-    if [ -d "$UNPACKED_ROOT" ]; then
-        # Move contents of the single directory to APP_HOME
-        LOG "Moving contents from $UNPACKED_ROOT to $APP_HOME"
-        # Move all contents, excluding the original temp directory itself
-        mv "$UNPACKED_ROOT"/* "$APP_HOME" 2>/dev/null
-        mv "$UNPACKED_ROOT"/.* "$APP_HOME" 2>/dev/null # Move hidden files/dirs too
-    else
-        # If no single directory, move all contents of temp_install to APP_HOME
-        LOG "Moving contents directly from $APP_HOME/temp_install to $APP_HOME"
-        mv "$APP_HOME/temp_install"/* "$APP_HOME" 2>/dev/null
-        mv "$APP_HOME/temp_install"/.* "$APP_HOME" 2>/dev/null # Move hidden files/dirs too
-    fi
+    # Replace the old app directory with the new one atomically
+    mv "$HAP_DIR" "$HAP_DIR.bak" 2>/dev/null || true
+    mv "$HAP_DIR.new" "$HAP_DIR"
+    rm -rf "$HAP_DIR.bak"
 
     # Clean up the temporary directory
     rm -rf "$APP_HOME/temp_install"
 
-    # 4. Create/update the last_checked file
+    # Create/update the last_checked file
     touch "$LAST_CHECKED_FILE"
-    LOG "Installation complete in $APP_HOME."
+    LOG_INFO "Installation complete in $APP_HOME."
 }
 
-
-handle_update_check() {
-    # 1. Check file age: older than $UPDATE_PERIOD days?
+download_and_install() {
+    # Check file age: older than $UPDATE_PERIOD days?
     # find command exits 0 and prints if a file matching criteria is found.
     # -mtime +N means modification time is older than N full 24-hour periods.
-    if [ ! -f "$LAST_CHECKED_FILE" ] || find "$LAST_CHECKED_FILE" -mtime +$UPDATE_PERIOD -print -quit 2>/dev/null; then
-        LOG "Checking for updates (last check older than $UPDATE_PERIOD days or file missing)..."
+    if [ ! -f "$LAST_CHECKED_FILE" ] || [ -n "$(find "$LAST_CHECKED_FILE" -mtime +$UPDATE_PERIOD -print -quit 2>/dev/null)" ]; then
+        LOG_INFO "Checking for updates (last check older than $UPDATE_PERIOD days or file missing)..."
 
-        # Record the modification time of the current archive before potential download
-        local OLD_MTIME=$(get_file_mtime "$ARCHIVE_FILE")
+        # Setup directories
+        mkdir -p "$CACHE_DIR" || { LOG_ERROR "Could not create cache directory $CACHE_DIR"; return 1; }
 
-        # 2. Conditional Download
+        # Conditional Download
         # -z "$ARCHIVE_FILE" tells curl to only download if the remote file is newer than the local one.
         # --remote-time (-r) ensures the new file uses the remote timestamp.
-        LOG "Attempting conditional download..."
-
         # Use -w "%{http_code}" to capture the status code
         HTTP_CODE=$(curl -w "%{http_code}" -sSL --remote-time -z "$ARCHIVE_FILE" "$DOWNLOAD_URL" -o "$ARCHIVE_FILE")
+        LOG_INFO "Received HTTP code: $HTTP_CODE"
 
-        # 3. Check for successful download (HTTP 200) or successful conditional skip (HTTP 304 Not Modified)
+        # Check for successful download (HTTP 200) or successful conditional skip (HTTP 304 Not Modified)
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            # Download successful (200 OK)
-            LOG "New release downloaded."
-
-            # Record the new modification time of the archive
-            local NEW_MTIME=$(get_file_mtime "$ARCHIVE_FILE")
-
-            # Check if the file timestamp actually changed (i.e., a newer file was downloaded)
-            if [ "$NEW_MTIME" -ne "$OLD_MTIME" ]; then
-                LOG "Archive file date changed (old=$OLD_MTIME, new=$NEW_MTIME). Unpacking update."
-                # 4. Unpack the new release
-                perform_full_install
-            else
-                LOG "Remote file was newer, but timestamp remained the same or file was skipped by curl -z. Skipping unpack."
-            fi
+            # Download successful
+            LOG_INFO "New release downloaded."
+            # Unpack the new release
+            unpack_and_install
+            return $?
         elif [ "$HTTP_CODE" -eq 304 ]; then
             # Conditional download skipped (304 Not Modified)
-            LOG "No new release available (304 Not Modified)."
+            LOG_INFO "No new release available (304 Not Modified)."
         else
             # Other error or redirection
-            LOG "Conditional download failed or returned unexpected status code: $HTTP_CODE. Skipping update."
+            LOG_INFO "Conditional download failed or returned unexpected status code: $HTTP_CODE. Skipping update."
+            return 1
         fi
 
-        # 5. Update last_checked timestamp regardless of success/failure of the update attempt
+        # Update last_checked timestamp regardless of success/failure of the update attempt
         touch "$LAST_CHECKED_FILE"
-        LOG "Update check complete. Timestamp updated."
+        LOG_INFO "Download/update check complete."
     else
-        LOG "Skipping update check (last check within $UPDATE_PERIOD days)."
+        LOG_INFO "Skipping update check (last check within $UPDATE_PERIOD days)."
     fi
 }
 
 # --- Execution Flow ---
 
-# 1. Installation/Update Check
+# Installation/Update Check
+LOG_INFO "Check for executable $APP_EXE"
 if [ ! -f "$APP_EXE" ]; then
-    perform_full_install
+    LOG_INFO "Application not found. Starting download and install..."
+    download_and_install
+    if [[ $? -ne 0 ]]; then
+        LOG_ERROR "Installation of application failed!"
+        exit 1
+    fi
 else
-    # Ensure cache directory exists for the last_checked file
-    mkdir -p "$CACHE_DIR" 2>/dev/null
-    handle_update_check
+    LOG_INFO "Application found. Check if there is an update to install..."
+    download_and_install
 fi
 
-# 2. Execution Handover (The final requirement)
+# Execution Handover (The final requirement)
 # Check if the currently executing script ($0) is NOT the application itself
 # Use realpath to resolve symbolic links and get the canonical path
 CURRENT_SCRIPT_PATH=$(realpath "$0")
@@ -189,7 +152,7 @@ BIN_EXE_PATH=$(realpath "$APP_EXE")
 
 # Check if the current script path is NOT the path of the actual application executable
 if [ "$CURRENT_SCRIPT_PATH" != "$BIN_EXE_PATH" ]; then
-    LOG "Handing over execution to the installed application: $APP_EXE"
+    LOG_INFO "Handing over execution to the installed application: $APP_EXE"
     # exec replaces the current script process with the application process
     exec "$APP_EXE" "$@"
 fi
@@ -199,7 +162,7 @@ fi
 ##########################################
 
 # This part is the "whatever might be there" section.
-LOG "Running inside the application's environment ($BIN_DIR)."
+LOG_INFO "Running inside the application's environment ($BIN_DIR)."
 
 # Your application's main logic or final execution step would go here if this script
 # *is* the final executable. Otherwise you can call out to other scripts or binaries as needed.

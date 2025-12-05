@@ -7,11 +7,11 @@ set APP_DIR=.dummy-app
 set DOWNLOAD_URL=https://github.com/codejive/bootstrap/releases/latest/download/release.tgz
 rem ---------------------------------------
 
-rem 1. Setup essential variables needed for config loading
+rem Setup essential variables needed for config loading
 set "HOME_DIR=%USERPROFILE%"
 set "APP_HOME=%HOME_DIR%\%APP_DIR%"
 
-rem 2. Define default overridable variables
+rem Define default overridable variables
 rem The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
 set UPDATE_PERIOD=3
 rem Logging level (default empty/silent; set to anything, e.g., 'DEBUG', to enable logging)
@@ -24,80 +24,76 @@ rem Helper subroutine to load configuration from a file
 :LOAD_CONFIG
     set "CONFIG_FILE=%~1"
     if exist "%CONFIG_FILE%" (
-        call :LOG "Loading configuration from %CONFIG_FILE%..."
-        rem /F "tokens=1,2 delims==" splits lines by '='. 'skip=0' is default. 'eol=#' handles comments.
+        rem call :LOG_INFO "Loading configuration from %CONFIG_FILE%..."
         for /f "tokens=1* delims== eol=#" %%a in ('type "%CONFIG_FILE%"') do (
-            rem %%a is the key (before '=') and %%b is the value (after '=')
             set %%a=%%b
         )
     )
     goto :eof
 
 rem Helper function for logging
-:LOG
-    rem Only echo the log message if LOG_LEVEL is not empty
-    if not "%LOG_LEVEL%"=="" (
-        echo [%APP_NAME% Bootstrap] %~1
+:LOG_ERROR
+    if "%LOG_LEVEL%" NEQ "" (
+        if 0 GEQ %LOG_LEVEL% 2>nul (
+            echo ERROR: %~1
+        )
+    )
+    goto :eof
+
+:LOG_INFO
+    if "%LOG_LEVEL%" NEQ "" (
+        if 2 GEQ %LOG_LEVEL% 2>nul (
+            echo [%APP_NAME% INFO] %~1
+        )
     )
     goto :eof
 
 rem --- Core Logic Functions ---
 
-:PERFORM_FULL_INSTALL
-    call :LOG "Application not found or update forced. Starting download and install..."
-    
-    rem 1. Setup directories
-    if not exist "%CACHE_DIR%" mkdir "%CACHE_DIR%" || (
-        call :LOG "Error: Could not create cache directory %CACHE_DIR%"
-        exit /b 1
-    )
+:UNPACK_AND_INSTALL
+    set "RETURN_CODE=0"
 
-    rem 2. Download the release archive
-    call :LOG "Downloading %DOWNLOAD_URL%..."
-    rem The --remote-time (-r) option ensures the local file date matches the remote server's date.
-    rem curl -o saves the output to the specified file
-    curl -fsSL --remote-time "%DOWNLOAD_URL%" -o "%ARCHIVE_FILE%"
-    if errorlevel 1 (
-        call :LOG "Error: Download failed for %DOWNLOAD_URL%."
-        exit /b 1
-    )
+    rem Unpack and clean up
+    call :LOG_INFO "Unpacking application..."
 
-    rem 3. Unpack and clean up
-    call :LOG "Unpacking application..."
-    
     rem Remove existing installation directory if it exists before unpacking
     if exist "%APP_HOME%\temp_install" rmdir /s /q "%APP_HOME%\temp_install"
-    
+
     rem Create a temporary directory for unpacking
     mkdir "%APP_HOME%\temp_install"
 
     rem Use the built-in 'tar' utility for ZIP/TAR.GZ extraction
     tar -xf "%ARCHIVE_FILE%" -C "%APP_HOME%\temp_install"
     if errorlevel 1 (
-        call :LOG "Error: Failed to unpack archive %ARCHIVE_FILE%. Check if it's a valid ZIP or TAR.GZ file."
+        call :LOG_ERROR "Failed to unpack archive %ARCHIVE_FILE%."
         rmdir /s /q "%APP_HOME%\temp_install"
-        exit /b 1
+        set "RETURN_CODE=1"
+        goto :eof
     )
 
-    rem Move contents from the temporary unpack location to the application home
-    rem Use XCOPY to move files/directories
-    call :LOG "Moving contents to %APP_HOME%"
-    
-    rem Copy everything from temp_install to APP_HOME (excluding temp_install itself)
-    rem /E: Copy subdirectories, including empty ones. /Y: Suppress prompting to overwrite.
-    xcopy "%APP_HOME%\temp_install\*" "%APP_HOME%\" /E /Y /I >nul 2>nul
-    
-    rem Clean up the temporary directory
-    rmdir /s /q "%APP_HOME%\temp_install"
+    rem Move all contents of temp_install to APP_HOME/app.new
+    call :LOG_INFO "Moving contents to %HAP_DIR%"
+    ren "%APP_HOME%\temp_install" "app.new"
 
-    rem 4. Create/update the last_checked file
-    type nul > "%LAST_CHECKED_FILE%"
-    call :LOG "Installation complete in %APP_HOME%."
+    rem Replace the old app directory with the new one atomically
+    if exist "%HAP_DIR%" (
+        ren "%HAP_DIR%" "app.bak"
+        ren "%HAP_DIR%.new" "app"
+        rmdir /s /q "%HAP_DIR%.bak"
+    ) else (
+        ren "%HAP_DIR%.new" "app"
+    )
+
+    rem Clean up the temporary directory
+    if exist "%APP_HOME%\temp_install" rmdir /s /q "%APP_HOME%\temp_install"
+
+    call :LOG_INFO "Installation complete in %APP_HOME%"
     goto :eof
 
-:HANDLE_UPDATE_CHECK
+:DOWNLOAD_AND_INSTALL
+    set "RETURN_CODE=0"
     set "UPDATE_NEEDED=false"
-    
+
     rem Check file age: older than %UPDATE_PERIOD% days? (or doesn't exist)
     rem forfiles exits with ERRORLEVEL 0 if files matching the criteria are found.
     rem /D -N means files older than N days ago.
@@ -105,59 +101,69 @@ rem --- Core Logic Functions ---
     if errorlevel 1 (
         rem ERRORLEVEL 1 means no files older than %UPDATE_PERIOD% days were found (either file is new, or file doesn't exist)
         if not exist "%LAST_CHECKED_FILE%" (
+            call :LOG_INFO "Checking for updates [file missing]..."
             set "UPDATE_NEEDED=true"
         ) else (
             rem Check for files older than %UPDATE_PERIOD% days
             set "IS_OLD=false"
             forfiles /P "%CACHE_DIR%" /M last_checked /D -%UPDATE_PERIOD% /C "cmd /c set IS_OLD=true" 2>nul
             if "%IS_OLD%"=="true" (
-                call :LOG "Checking for updates (last check older than %UPDATE_PERIOD% days or file missing)..."
+                call :LOG_INFO "Checking for updates [last check older than %UPDATE_PERIOD% days or file missing]..."
                 set "UPDATE_NEEDED=true"
             ) else (
-                call :LOG "Skipping update check (last check within %UPDATE_PERIOD% days)."
+                call :LOG_INFO "Skipping update check [last check within %UPDATE_PERIOD% days]."
                 goto :eof
             )
         )
     ) else (
         rem The file exists and IS older than %UPDATE_PERIOD% days, so ERRORLEVEL 0 was returned.
-        call :LOG "Checking for updates (last check older than %UPDATE_PERIOD% days)..."
+        call :LOG_INFO "Checking for updates [last check older than %UPDATE_PERIOD% days]..."
         set "UPDATE_NEEDED=true"
     )
-    
-    if "%UPDATE_NEEDED%"=="true" (
-        rem 2. Conditional Download
-        rem Record the size of the current archive
-        set "OLD_SIZE=0"
-        if exist "%ARCHIVE_FILE%" for %%F in ("%ARCHIVE_FILE%") do set OLD_SIZE=%%~zF
 
-        call :LOG "Attempting conditional download..."
-        rem -z "%ARCHIVE_FILE%" tells curl to only download if the remote file is newer than the local one.
-        rem --remote-time (-r) ensures the new file uses the remote timestamp.
-        curl -fsSL --remote-time -z "%ARCHIVE_FILE%" "%DOWNLOAD_URL%" -o "%ARCHIVE_FILE%"
-        
-        set "CURL_EXIT_CODE=%ERRORLEVEL%"
-        
-        if "%CURL_EXIT_CODE%"=="0" (
-            rem Check if the file size changed (indicating a new file was downloaded)
-            set "NEW_SIZE=0"
-            if exist "%ARCHIVE_FILE%" for %%F in ("%ARCHIVE_FILE%") do set NEW_SIZE=%%~zF
-            
-            if not "!OLD_SIZE!"=="!NEW_SIZE!" (
-                call :LOG "New release downloaded (size changed: Old=!OLD_SIZE!, New=!NEW_SIZE!). Unpacking update."
-                rem 4. Unpack the new release
-                call :PERFORM_FULL_INSTALL
-            ) else (
-                call :LOG "No new release available or conditional download skipped."
-            )
-        ) else (
-            rem curl exit code non-zero (might be failure or 304 Not Modified if verbose)
-            call :LOG "Conditional download failed or returned Not Modified. Skipping unpack."
-        )
-
-        rem 5. Update last_checked timestamp regardless of success/failure of the update attempt
-        type nul > "%LAST_CHECKED_FILE%"
-        call :LOG "Update check complete. Timestamp updated."
+    if "!UPDATE_NEEDED!" NEQ "true" (
+        goto :eof
     )
+
+    rem Setup directories
+    if not exist "%CACHE_DIR%" mkdir "%CACHE_DIR%" || (
+        call :LOG_ERROR "Could not create cache directory %CACHE_DIR%"
+        set "RETURN_CODE=1"
+        goto :eof
+    )
+
+    rem -z "%ARCHIVE_FILE%" tells curl to only download if the remote file is newer than the local one.
+    rem --remote-time (-r) ensures the new file uses the remote timestamp.
+    rem Use -w "%{http_code}" to capture the status code
+    set "HTTP_CODE=0"
+    for /f %%i in ('curl -w "%%{http_code}" -fsSL --remote-time -z "!ARCHIVE_FILE!" "!DOWNLOAD_URL!" -o "!ARCHIVE_FILE!"') do (
+        set "HTTP_CODE=%%i"
+    )
+    call :LOG_INFO "Received HTTP code: !HTTP_CODE!"
+
+    if "!HTTP_CODE!" NEQ "" (
+        if !HTTP_CODE! GEQ 200 (
+            if !HTTP_CODE! LSS 300 (
+                call :LOG_INFO "New release downloaded."
+                rem Unpack the new release
+                call :UNPACK_AND_INSTALL
+                goto :MARK_CHECKED
+            )
+        )
+        if "!HTTP_CODE!" EQU "304" (
+            rem Conditional download skipped (304 Not Modified)
+            call :LOG_INFO "No new release available [304 Not Modified]."
+        ) else (
+            rem Other error or redirection
+            call :LOG_INFO "Conditional download failed or returned unexpected status code: %HTTP_CODE%. Skipping update."
+            set "RETURN_CODE=1"
+        )
+    )
+
+:MARK_CHECKED
+    rem Update last_checked timestamp regardless of success/failure of the update attempt
+    type nul > "%LAST_CHECKED_FILE%"
+    call :LOG_INFO "Download/update check complete."
     goto :eof
 
 :START
@@ -170,25 +176,33 @@ call :LOAD_CONFIG ".\%APP_DIR%\bootstrap.cfg"
 
 rem -----------------------------
 
-rem 3. Define the remaining path variables using the (potentially overridden) NAME/UPDATE_PERIOD
+rem Define the remaining path variables using the (potentially overridden) NAME/UPDATE_PERIOD
 set "CACHE_DIR=%APP_HOME%\_cache"
-set "BIN_DIR=%APP_HOME%\bin"
+set "HAP_DIR=%APP_HOME%\app"
+set "BIN_DIR=%HAP_DIR%\bin"
 set "APP_EXE=%BIN_DIR%\%APP_NAME%.cmd"
 set "ARCHIVE_FILE=%CACHE_DIR%\release.zip"
 set "LAST_CHECKED_FILE=%CACHE_DIR%\last_checked"
 
 rem --- Execution Flow ---
 
-rem 1. Installation/Update Check
+rem Installation/Update Check
+call :LOG_INFO "Check for executable %APP_EXE%"
 if not exist "%APP_EXE%" (
-    call :PERFORM_FULL_INSTALL
+    call :LOG_INFO "Application not found. Starting download and install..."
+    call :DOWNLOAD_AND_INSTALL
+    if "!RETURN_CODE!" NEQ "0" (
+        call :LOG_ERROR "Installation of application failed!"
+        exit /b 1
+    )
 ) else (
-    rem Ensure cache directory exists for the last_checked file
-    if not exist "%CACHE_DIR%" mkdir "%CACHE_DIR%"
-    call :HANDLE_UPDATE_CHECK
+    call :LOG_INFO "Application found. Check if there is an update to install..."
+    call :DOWNLOAD_AND_INSTALL
 )
 
-rem 2. Execution Handover (The final requirement)
+exit /b 0
+
+rem Execution Handover (The final requirement)
 rem Get the full path of the current script's directory
 set "SCRIPT_DIR=%~dp0"
 rem Remove trailing backslash for comparison
@@ -197,7 +211,7 @@ if "%SCRIPT_DIR_CLEAN:~-1%"=="\" set "SCRIPT_DIR_CLEAN=%SCRIPT_DIR_CLEAN:~0,-1%"
 
 rem Check if the script's directory is NOT the bin directory
 if /I NOT "%SCRIPT_DIR_CLEAN%" EQU "%BIN_DIR%" (
-    call :LOG "Handing over execution to the installed application: %APP_EXE%"
+    call :LOG_INFO "Handing over execution to the installed application: %APP_EXE%"
     rem Use 'start' to run the application and allow the current script to exit immediately.
     rem %* passes all arguments to the new process.
     "%APP_EXE%" %*
@@ -209,7 +223,7 @@ rem # BELOW THIS POINT YOU PUT YOUR OWN CODE #
 rem ##########################################
 
 rem This part is the "whatever might be there" section.
-call :LOG "Running inside the application's environment (%BIN_DIR%)."
+call :LOG_INFO "Running inside the application's environment (%BIN_DIR%)."
 
 rem Your application's main logic or final execution step would go here if this script
 rem *is* the final executable. Otherwise you can call out to other scripts or binaries as needed.
