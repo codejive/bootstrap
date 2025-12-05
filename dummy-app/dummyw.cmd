@@ -65,7 +65,7 @@ rem --- Core Logic Functions ---
     rem Use the built-in 'tar' utility for ZIP/TAR.GZ extraction
     tar -xf "%ARCHIVE_FILE%" -C "%APP_HOME%\temp_install"
     if errorlevel 1 (
-        call :LOG_ERROR "Failed to unpack archive %ARCHIVE_FILE%."
+        call :LOG_ERROR "Failed to unpack archive %ARCHIVE_FILE%"
         rmdir /s /q "%APP_HOME%\temp_install"
         set "RETURN_CODE=1"
         goto :eof
@@ -111,7 +111,7 @@ rem --- Core Logic Functions ---
                 call :LOG_INFO "Checking for updates [last check older than %UPDATE_PERIOD% days or file missing]..."
                 set "UPDATE_NEEDED=true"
             ) else (
-                call :LOG_INFO "Skipping update check [last check within %UPDATE_PERIOD% days]."
+                call :LOG_INFO "Skipping update check [last check within %UPDATE_PERIOD% days]"
                 goto :eof
             )
         )
@@ -144,7 +144,7 @@ rem --- Core Logic Functions ---
     if "!HTTP_CODE!" NEQ "" (
         if !HTTP_CODE! GEQ 200 (
             if !HTTP_CODE! LSS 300 (
-                call :LOG_INFO "New release downloaded."
+                call :LOG_INFO "New release downloaded"
                 rem Unpack the new release
                 call :UNPACK_AND_INSTALL
                 goto :MARK_CHECKED
@@ -152,10 +152,10 @@ rem --- Core Logic Functions ---
         )
         if "!HTTP_CODE!" EQU "304" (
             rem Conditional download skipped (304 Not Modified)
-            call :LOG_INFO "No new release available [304 Not Modified]."
+            call :LOG_INFO "No new release available [304 Not Modified]"
         ) else (
             rem Other error or redirection
-            call :LOG_INFO "Conditional download failed or returned unexpected status code: %HTTP_CODE%. Skipping update."
+            call :LOG_INFO "Conditional download failed or returned unexpected status code: %HTTP_CODE%. Skipping update"
             set "RETURN_CODE=1"
         )
     )
@@ -163,7 +163,7 @@ rem --- Core Logic Functions ---
 :MARK_CHECKED
     rem Update last_checked timestamp regardless of success/failure of the update attempt
     type nul > "%LAST_CHECKED_FILE%"
-    call :LOG_INFO "Download/update check complete."
+    call :LOG_INFO "Download/update check complete"
     goto :eof
 
 :START
@@ -221,7 +221,7 @@ rem # BELOW THIS POINT YOU PUT YOUR OWN CODE #
 rem ##########################################
 
 rem This part is the "whatever might be there" section.
-call :LOG_INFO "Running inside the application's environment (%BIN_DIR%)."
+call :LOG_INFO "Running inside the application's environment [%BIN_DIR%]"
 
 rem Your application's main logic or final execution step would go here if this script
 rem *is* the final executable. Otherwise you can call out to other scripts or binaries as needed.

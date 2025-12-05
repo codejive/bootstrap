@@ -65,7 +65,7 @@ unpack_and_install() {
     mkdir -p "$APP_HOME/temp_install"
 
     if ! tar -xzf "$ARCHIVE_FILE" -C "$APP_HOME/temp_install"; then
-        LOG_ERROR "Failed to unpack archive $ARCHIVE_FILE."
+        LOG_ERROR "Failed to unpack archive $ARCHIVE_FILE"
         rm -rf "$APP_HOME/temp_install"
         return 1
     fi
@@ -84,7 +84,7 @@ unpack_and_install() {
 
     # Create/update the last_checked file
     touch "$LAST_CHECKED_FILE"
-    LOG_INFO "Installation complete in $APP_HOME."
+    LOG_INFO "Installation complete in $APP_HOME"
 }
 
 download_and_install() {
@@ -92,7 +92,7 @@ download_and_install() {
     # find command exits 0 and prints if a file matching criteria is found.
     # -mtime +N means modification time is older than N full 24-hour periods.
     if [ ! -f "$LAST_CHECKED_FILE" ] || [ -n "$(find "$LAST_CHECKED_FILE" -mtime +$UPDATE_PERIOD -print -quit 2>/dev/null)" ]; then
-        LOG_INFO "Checking for updates (last check older than $UPDATE_PERIOD days or file missing)..."
+        LOG_INFO "Checking for updates [last check older than $UPDATE_PERIOD days or file missing]..."
 
         # Setup directories
         mkdir -p "$CACHE_DIR" || { LOG_ERROR "Could not create cache directory $CACHE_DIR"; return 1; }
@@ -107,24 +107,24 @@ download_and_install() {
         # Check for successful download (HTTP 200) or successful conditional skip (HTTP 304 Not Modified)
         if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             # Download successful
-            LOG_INFO "New release downloaded."
+            LOG_INFO "New release downloaded"
             # Unpack the new release
             unpack_and_install
             return $?
         elif [ "$HTTP_CODE" -eq 304 ]; then
             # Conditional download skipped (304 Not Modified)
-            LOG_INFO "No new release available (304 Not Modified)."
+            LOG_INFO "No new release available [304 Not Modified]"
         else
             # Other error or redirection
-            LOG_INFO "Conditional download failed or returned unexpected status code: $HTTP_CODE. Skipping update."
+            LOG_INFO "Conditional download failed or returned unexpected status code: $HTTP_CODE. Skipping update"
             return 1
         fi
 
         # Update last_checked timestamp regardless of success/failure of the update attempt
         touch "$LAST_CHECKED_FILE"
-        LOG_INFO "Download/update check complete."
+        LOG_INFO "Download/update check complete"
     else
-        LOG_INFO "Skipping update check (last check within $UPDATE_PERIOD days)."
+        LOG_INFO "Skipping update check [last check within $UPDATE_PERIOD days]"
     fi
 }
 
@@ -162,7 +162,7 @@ fi
 ##########################################
 
 # This part is the "whatever might be there" section.
-LOG_INFO "Running inside the application's environment ($BIN_DIR)."
+LOG_INFO "Running inside the application's environment [$BIN_DIR]"
 
 # Your application's main logic or final execution step would go here if this script
 # *is* the final executable. Otherwise you can call out to other scripts or binaries as needed.
