@@ -1,10 +1,10 @@
 # **Bootstrap Scripts**
 
-**Universal Application Installer and Updater Scripts**
+**Universal Wrapper - an application installer and updater**
 
-This repository contains two scripts—one Bash script for Linux/macOS and one Batch script for Windows—designed to manage the installation, periodic checking, and execution of a single command-line application.
+This repository contains two scripts: one Bash script for Linux/macOS and one Batch script for Windows, designed to manage the installation, periodic checking, and execution of a single command-line application.
 
-The primary goal is to provide a user-friendly wrapper that ensures the application is always present and up-to-date before it runs, without relying on traditional package managers.
+The primary goal is to provide an extremely simply, user-friendly wrapper that ensures the application is always present and up-to-date before it runs, without having to rely on traditional package managers.
 
 ## **Features**
 
@@ -56,11 +56,11 @@ UPDATE_PERIOD=7
 
 ## **Script Details**
 
-### **`APPw` (Linux/macOS)**
+### **`APP` (Linux/macOS)**
 
 * **Requirements:** `bash`, `curl`, `tar`, `find` and `stat`.
 
-### **`APPw.cmd` (Windows)**
+### **`APP.cmd` (Windows)**
 
 * **Requirements:** Modern Windows (10/11) with `curl` and `tar` available in the PATH.
 
@@ -94,14 +94,21 @@ README.md
 2. **Naming:** It is required that scripts in the `bin` are named the same as the variable `NAME` found inside them (see [Usage](#usage) below).
 3. **No conflicts:** Do _not_ include the `bootstrap.cfg` file inside the archive, as it would override user configurations on each update. And no folder or file named `_cache` should exist either.
 
+### **Uploading**
+
+1. **Configure:** Edit the `NAME` and `DOWNLOAD_URL` variables (and possibly `APP_DIR` if you want a different name than the default) at the top of both scripts (`APP` and `APP.bat`).
+2. **Rename:** Rename the scripts to match your application's name.
+3. **Upload:** Upload the release archive to your hosting location and ensure the `DOWNLOAD_URL` variable points to it.
+
 ## **Usage**
 
-1. **Configure:** Edit the `NAME` and `DOWNLOAD_URL` variables (and possibly `APP_DIR` if you want a different name than the default) at the top of both scripts (`APPw` and `APPw.bat`).
-2. **Rename:** Rename the scripts to match your application's name. Common usage is to have the name of the scripts end in the letter “w” to indicate they are “wrapper” scripts (e.g., if `APP_NAME=foo`, rename to `foow` and `foow.bat`).
-3. **Execute:** Place the scripts in a directory where you want the command to be available and run it:
+After the preparation has been completed and the release archive has been uploaded, you can use the scripts as follows:
+
+1. **Copy:** Take both scripts that you prepared in the previous step and make copies in any directory/project where you'd like these commands to be available without prior installation. A common usage is to have the name of the scripts end in the letter “w” to indicate they are “wrapper” scripts (e.g., if `APP_NAME=foo`, rename to `foow` and `foow.bat`).
+4. **Execute:** Now simply run the script from the command line, passing any arguments you want to forward to the application:
 
 ```
-# On Linux/Mac (make sure it's executable: chmod +x APPw)  
+# On Linux/Mac (make sure it's executable: chmod +x foow)  
 ./foow --some-argument
 
 # On Windows  
@@ -115,7 +122,7 @@ The first time you run it, the application will download and install itself to t
 To force an update check, you can delete the `last_checked` file located in the application's installation directory, eg:
 
 ```
-rm $HOME/.APP/cache/last_checked
+rm $HOME/.APP/_cache/last_checked
 ```
 
 Then the next execution of the script will check for updates.
@@ -125,7 +132,7 @@ Then the next execution of the script will check for updates.
 To force a complete reinstallation of the application, delete the application's `cache` directory, eg:
 
 ```
-rm -rf $HOME/.APP/cache
+rm -rf $HOME/.APP/_cache
 ```
 
 Then the next execution of the script will download and install the application afresh.
