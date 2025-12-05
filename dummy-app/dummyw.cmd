@@ -200,8 +200,6 @@ if not exist "%APP_EXE%" (
     call :DOWNLOAD_AND_INSTALL
 )
 
-exit /b 0
-
 rem Execution Handover (The final requirement)
 rem Get the full path of the current script's directory
 set "SCRIPT_DIR=%~dp0"
