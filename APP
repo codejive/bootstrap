@@ -14,7 +14,7 @@ APP_HOME="$HOME_DIR/$APP_DIR"
 # The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
 UPDATE_PERIOD=3
 # Logging level (0-ERROR, 1-WARN, 2-INFO, 3-DEBUG, empty disables logging)
-LOG_LEVEL=
+LOG_LEVEL=0
 
 # --- Configuration Loading ---
 # Function to load configuration variables from a file
@@ -44,13 +44,13 @@ LAST_CHECKED_FILE="$CACHE_DIR/last_checked"
 
 # Helper function for logging
 LOG_ERROR() {
-    if [[ -n "$LOG_LEVEL" && "0" -ge "$LOG_LEVEL" ]]; then
+    if [[ -n "$LOG_LEVEL" && "0" -le "$LOG_LEVEL" ]]; then
       echo "ERROR: $1"
     fi
 }
 
 LOG_INFO() {
-    if [[ -n "$LOG_LEVEL" && "2" -ge "$LOG_LEVEL" ]]; then
+    if [[ -n "$LOG_LEVEL" && "2" -le "$LOG_LEVEL" ]]; then
       echo "[$APP_NAME INFO] $1"
     fi
 }

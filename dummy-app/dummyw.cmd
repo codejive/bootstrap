@@ -14,8 +14,8 @@ set "APP_HOME=%HOME_DIR%\%APP_DIR%"
 rem Define default overridable variables
 rem The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
 set UPDATE_PERIOD=3
-rem Logging level (default empty/silent; set to anything, e.g., 'DEBUG', to enable logging)
-set LOG_LEVEL=
+rem Logging level (0-ERROR, 1-WARN, 2-INFO, 3-DEBUG, empty disables logging)
+set LOG_LEVEL=0
 
 goto :START
 
@@ -34,7 +34,7 @@ rem Helper subroutine to load configuration from a file
 rem Helper function for logging
 :LOG_ERROR
     if "%LOG_LEVEL%" NEQ "" (
-        if 0 GEQ %LOG_LEVEL% 2>nul (
+        if 0 LEQ "%LOG_LEVEL%" 2>nul (
             echo ERROR: %~1
         )
     )
@@ -42,7 +42,7 @@ rem Helper function for logging
 
 :LOG_INFO
     if "%LOG_LEVEL%" NEQ "" (
-        if 2 GEQ %LOG_LEVEL% 2>nul (
+        if 2 LEQ "%LOG_LEVEL%" 2>nul (
             echo [%APP_NAME% INFO] %~1
         )
     )
