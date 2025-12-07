@@ -33,18 +33,16 @@ rem Helper subroutine to load configuration from a file
 
 rem Helper function for logging
 :LOG_ERROR
-    if "%LOG_LEVEL%" NEQ "" (
-        if 0 LEQ "%LOG_LEVEL%" 2>nul (
-            echo ERROR: %~1
-        )
+    if "%LOG_LEVEL%" EQU "" goto :eof
+    if 0 LEQ "%LOG_LEVEL%" 2>nul (
+        echo ERROR: %~1
     )
     goto :eof
 
 :LOG_INFO
-    if "%LOG_LEVEL%" NEQ "" (
-        if 2 LEQ "%LOG_LEVEL%" 2>nul (
-            echo [%APP_NAME% INFO] %~1
-        )
+    if "%LOG_LEVEL%" EQU "" goto :eof
+    if 2 LEQ %LOG_LEVEL% 2>nul (
+        echo [%APP_NAME% INFO] %~1
     )
     goto :eof
 
