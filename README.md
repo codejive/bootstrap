@@ -16,6 +16,16 @@ These scripts handle the following responsibilities:
 4. **Execution Handover:** The script acts as a self-installer/updater wrapper. After ensuring the application is ready, it hands over execution to the application to be started.
 5. **Configuration Overrides:** Key variables, like the update frequency, can be configured without editing the main script file.
 
+## **Non-Features**
+
+These scripts do not handle:
+
+1. **PATH Modification:** They do not modify the system PATH or environment variables. The user must run the script from its location or add the application's bin directory to their PATH manually.
+2. **Dependency Management:** They do not install or manage dependencies for the application. It is assumed all required dependencies are part of the application package or already present on the system.
+3. **Complex Versioning:** They do not manage complex versioning schemes. The update check is based solely on file modification timestamps obtained from the download URL.
+4. **Rollback Mechanism:** There is no built-in rollback mechanism, or even an uninstaller, in case an update fails or introduces issues.
+5. **Multi-User Installations:** The installation is per-user and does not support system-wide installations.
+
 ## **Configuration**
 
 Configuration is managed in two ways:
