@@ -4,7 +4,7 @@
 
 This repository contains two scripts: one Bash script for Linux/macOS and one Batch script for Windows, designed to manage the installation, periodic checking, and execution of a single command-line application.
 
-The primary goal is to provide an extremely simply, user-friendly wrapper that ensures the application is always present and up-to-date before it runs, without having to rely on traditional package managers.
+The primary goal is to provide an extremely simply, user-friendly copy&pastable wrapper script that ensures the application is always present and up-to-date before it runs, without having to rely on traditional package managers.
 
 ## **Features**
 
