@@ -55,7 +55,13 @@ LAST_CHECKED_FILE="$CCH_DIR/last_checked"
 # Helper function for logging
 LOG_ERROR() {
     if [[ -n "$LOG_LEVEL" && "0" -le "$LOG_LEVEL" ]]; then
-      echo "ERROR: $1"
+      echo "\033[31mERROR\033[0m: $1"
+    fi
+}
+
+LOG_WARN() {
+    if [[ -n "$LOG_LEVEL" && "1" -le "$LOG_LEVEL" ]]; then
+      echo -e "[\033[33m$APP_NAME WARN\033[0m] $1"
     fi
 }
 
@@ -110,7 +116,10 @@ unpack_and_install() {
         fi
     fi
 
-    # TODO: warn user when the app is not available in their PATH
+    # Warn user when the app is not available in their PATH
+    if [ ! -x "$(command -v "$APP_NAME")" ]; then
+        LOG_WARN "'$SHARED_BIN' is not in your PATH. You may want to add it to run '$APP_NAME' from anywhere."
+    fi
 
     # Clean up the temporary directory
     rm -rf "$TMP_DIR"

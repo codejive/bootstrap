@@ -39,7 +39,14 @@ rem Helper function for logging
 :LOG_ERROR
     if "%LOG_LEVEL%" EQU "" goto :eof
     if 0 LEQ "%LOG_LEVEL%" 2>nul (
-        echo ERROR: %~1
+        echo [31mERROR[0m: %~1
+    )
+    goto :eof
+
+:LOG_WARN
+    if "%LOG_LEVEL%" EQU "" goto :eof
+    if 1 LEQ %LOG_LEVEL% 2>nul (
+        echo [[33m%APP_NAME% WARN[0m] %~1
     )
     goto :eof
 
@@ -97,6 +104,12 @@ rem --- Core Logic Functions ---
         )
         rem We also copy the batch file (it should exist)
         copy /Y "%APP_SCRIPT%.cmd" "%SHARED_BIN%\%APP_NAME%.cmd" > nul
+    )
+
+    rem Warn user when the app is not available in their PATH
+    where /q "%APP_NAME%" 2>nul
+    if %ERRORLEVEL% NEQ 0 (
+        call :LOG_WARN "'%SHARED_BIN%' is not in your PATH. You may want to add it to run '%APP_NAME%' from anywhere."
     )
 
     rem Clean up the temporary directory
