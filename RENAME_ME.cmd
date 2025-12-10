@@ -2,8 +2,9 @@
 setlocal enableExtensions enableDelayedExpansion
 
 rem --- Configuration (Non-Overridable) ---
-set APP_NAME=APP
-set APP_DIR=.APP
+set APP_NAME=RENAME_ME
+set APP_DIR=RENAME_ME
+rem --- Configuration (Overridable) -------
 set DOWNLOAD_URL=https://example.com/releases/.../foo-latest.zip
 rem ---------------------------------------
 

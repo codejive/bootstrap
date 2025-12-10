@@ -36,8 +36,8 @@ These variables are defined directly at the top of the scripts and **should not*
 
 | Variable         | Default Value (Example)   | Description                                                                              |
 |:-----------------|:--------------------------|:-----------------------------------------------------------------------------------------|
-| **APP_NAME**     | `APP`                     | The short name of the application.                                                       |
-| **APP_DIR**      | `APP`                     | The installation directory name of the application.                                      |
+| **APP_NAME**     | `RENAME_ME`               | The short name of the application.                                                       |
+| **APP_DIR**      | `RENAME_ME`               | The installation directory name of the application.                                      |
 | **DOWNLOAD_URL** | `https://example.com/...` | The direct download URL for the release archive (.tgz for Bash, .zip or .tgz for Batch). |
 
 ### **2\. Overridable Variables**
@@ -66,31 +66,31 @@ UPDATE_PERIOD=7
 
 ## **Script Details**
 
-### **`APP` (Linux/macOS)**
+### **`RENAME_ME` (Linux/macOS)**
 
 * **Requirements:** `bash`, `curl`, `tar`, `find` and `stat`.
 
-### **`APP.cmd` (Windows)**
+### **`RENAME_ME.cmd` (Windows)**
 
 * **Requirements:** Modern Windows (10/11) with `curl` and `tar` available in the PATH.
 
 ## **Preparation**
 
-You will need a hosting location for your application’s release archive (a `.tgz` file for the Bash script, and a `.zip` or `.tgz` file for the Batch script). This archive can contain any files you want but it should have at least the two script files in a `bin` folder.
+You will need a hosting location for your application’s release archive (a `.tgz` file for the Bash script, and a `.zip` or `.tgz` file for the Batch script). This archive can contain any files you want, but it should have at least the two script files in a `bin` folder renamed to whatever your application is called (in this example `RENAME_ME` and `RENAME_ME.cmd` have become `myapp` and `myapp.cmd` respectively).
 This is the minimum contents of the archive:
 
 ```
 bin/
-  APP
-  APP.cmd
+  myapp
+  myapp.cmd
 ```
 
 but you can also include additional files and folders as needed. The following is an example of a more complete archive structure:
 
 ```
 bin/
-  APP
-  APP.cmd
+  myapp
+  myapp.cmd
   other_executable_files
 lib/
   supporting_libraries
@@ -100,13 +100,13 @@ README.md
 ```
 
 **IMPORTANT:**
-1. **Permissions:** Ensure that the `APP` file inside the `bin` folder has executable permissions set (especially for Linux/macOS).
+1. **Permissions:** Ensure that the `myapp` file inside the `bin` folder has executable permissions set (especially for Linux/macOS).
 2. **Naming:** It is required that scripts in the `bin` are named the same as the variable `NAME` found inside them (see [Usage](#usage) below).
 3. **No conflicts:** Do _not_ include the `bootstrap.cfg` file inside the archive, as it would override user configurations on each update. And no folder or file named `_cache` should exist either.
 
 ### **Uploading**
 
-1. **Configure:** Edit the `NAME` and `DOWNLOAD_URL` variables (and possibly `APP_DIR` if you want a different name than the default) at the top of both scripts (`APP` and `APP.bat`).
+1. **Configure:** Edit the `NAME` and `DOWNLOAD_URL` variables (and possibly `APP_DIR` if you want a different name than the default) at the top of both scripts (`myapp` and `myapp.bat`).
 2. **Rename:** Rename the scripts to match your application's name.
 3. **Upload:** Upload the release archive to your hosting location and ensure the `DOWNLOAD_URL` variable points to it.
 

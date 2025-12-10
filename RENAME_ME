@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # --- Configuration (Non-Overridable) ---
-APP_NAME="APP"
-APP_DIR=".APP"
+APP_NAME="RENAME_ME"
+APP_DIR="RENAME_ME"
+# --- Configuration (Overridable) -------
 DOWNLOAD_URL="https://example.com/releases/.../foo-latest.tgz"
 # ---------------------------------------
 

@@ -3,6 +3,7 @@
 # --- Configuration (Non-Overridable) ---
 APP_NAME="dummy"
 APP_DIR="dummy-app"
+# --- Configuration (Overridable) -------
 DOWNLOAD_URL="https://github.com/codejive/bootstrap/releases/latest/download/release.tgz"
 # ---------------------------------------
 
