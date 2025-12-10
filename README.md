@@ -129,20 +129,20 @@ The first time you run it, the application will download and install itself to t
 
 ### Force new version check
 
-To force an update check, you can delete the `last_checked` file located in the application's installation directory, eg:
+To force an update check, you can delete the `last_checked` file located in the application's cache directory, eg:
 
 ```
-rm $HOME/.APP/_cache/last_checked
+rm -rf $HOME/.cache/APP/bootstrap/last_checked
 ```
 
 Then the next execution of the script will check for updates.
 
 ### Force update/reinstall
 
-To force a complete reinstallation of the application, delete the application's `cache` directory, eg:
+To force a complete reinstallation of the application, delete the `bootstrap` folder located in the application's cache directory, eg:
 
 ```
-rm -rf $HOME/.APP/_cache
+rm -rf $HOME/.cache/APP/bootstrap
 ```
 
 Then the next execution of the script will download and install the application afresh.
