@@ -3,19 +3,23 @@ setlocal enableExtensions enableDelayedExpansion
 
 rem --- Configuration (Non-Overridable) ---
 set APP_NAME=dummy
-set APP_DIR=.dummy-app
+set APP_DIR=dummy-app
 set DOWNLOAD_URL=https://github.com/codejive/bootstrap/releases/latest/download/release.tgz
 rem ---------------------------------------
 
-rem Setup essential variables needed for config loading
 set "HOME_DIR=%USERPROFILE%"
-set "APP_HOME=%HOME_DIR%\%APP_DIR%"
+
+rem Define essential directories
+set "APP_HOME=%HOME_DIR%\.local\share\%APP_DIR%"
+set "CONFIG_HOME=%HOME_DIR%\.config\%APP_DIR%"
+set "CACHE_HOME=%HOME_DIR%\.cache\%APP_DIR%"
+set "SHARED_BIN=%HOME_DIR%\.local\bin"
 
 rem Define default overridable variables
 rem The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
 set UPDATE_PERIOD=3
 rem Logging level (0-ERROR, 1-WARN, 2-INFO, 3-DEBUG, empty disables logging)
-set LOG_LEVEL=0
+set "LOG_LEVEL=1"
 
 goto :START
 
@@ -55,35 +59,48 @@ rem --- Core Logic Functions ---
     call :LOG_INFO "Unpacking application..."
 
     rem Remove existing installation directory if it exists before unpacking
-    if exist "%APP_HOME%\temp_install" rmdir /s /q "%APP_HOME%\temp_install"
+    if exist "%TMP_DIR%" rmdir /s /q "%TMP_DIR%"
 
     rem Create a temporary directory for unpacking
-    mkdir "%APP_HOME%\temp_install"
+    mkdir "%TMP_DIR%"
 
     rem Use the built-in 'tar' utility for ZIP/TAR.GZ extraction
-    tar -xf "%ARCHIVE_FILE%" -C "%APP_HOME%\temp_install"
+    tar -xf "%ARCHIVE_FILE%" -C "%TMP_DIR%"
     if errorlevel 1 (
         call :LOG_ERROR "Failed to unpack archive %ARCHIVE_FILE%"
-        rmdir /s /q "%APP_HOME%\temp_install"
+        rmdir /s /q "%TMP_DIR%"
         set "RETURN_CODE=1"
         goto :eof
     )
 
-    rem Move all contents of temp_install to APP_HOME/app.new
+    rem Move all contents of temp_install to NEW_DIR
     call :LOG_INFO "Moving contents to %HAP_DIR%"
-    ren "%APP_HOME%\temp_install" "app.new"
+    mkdir "%APP_HOME%"
+    move "%TMP_DIR%" "%NEW_DIR%" > nul
 
     rem Replace the old app directory with the new one atomically
     if exist "%HAP_DIR%" (
-        ren "%HAP_DIR%" "app.bak"
-        ren "%HAP_DIR%.new" "app"
-        rmdir /s /q "%HAP_DIR%.bak"
+        move /Y "%HAP_DIR%" "%BAK_DIR%" > nul
+        move /Y "%NEW_DIR%" "%HAP_DIR%" > nul
+        rmdir /s /q "%BAK_DIR%"
     ) else (
-        ren "%HAP_DIR%.new" "app"
+        move /Y "%NEW_DIR%" "%HAP_DIR%" > nul
+    )
+
+    rem Copy application script(s) to shared bin
+    if defined SHARED_BIN (
+        call :LOG_INFO "Making application available in shared bin directory: %SHARED_BIN%"
+        if not exist "%SHARED_BIN%" mkdir "%SHARED_BIN%"
+        rem We always copy the Bash script (if it exists), even on Windows
+        if exist "%APP_SCRIPT%" (
+            copy /Y "%APP_SCRIPT%" "%SHARED_BIN%\%APP_NAME%" > nul
+        )
+        rem We also copy the batch file (it should exist)
+        copy /Y "%APP_SCRIPT%.cmd" "%SHARED_BIN%\%APP_NAME%.cmd" > nul
     )
 
     rem Clean up the temporary directory
-    if exist "%APP_HOME%\temp_install" rmdir /s /q "%APP_HOME%\temp_install"
+    if exist "%TMP_DIR%" rmdir /s /q "%TMP_DIR%"
 
     call :LOG_INFO "Installation complete in %APP_HOME%"
     goto :eof
@@ -95,7 +112,7 @@ rem --- Core Logic Functions ---
     rem Check file age: older than %UPDATE_PERIOD% days? (or doesn't exist)
     rem forfiles exits with ERRORLEVEL 0 if files matching the criteria are found.
     rem /D -N means files older than N days ago.
-    forfiles /P "%CACHE_DIR%" /M last_checked /D -%UPDATE_PERIOD% /C "cmd /c echo Found > nul" 2>nul
+    forfiles /P "%CCH_DIR%" /M last_checked /D -%UPDATE_PERIOD% /C "cmd /c echo Found > nul" 2>nul
     if errorlevel 1 (
         rem ERRORLEVEL 1 means no files older than %UPDATE_PERIOD% days were found (either file is new, or file doesn't exist)
         if not exist "%LAST_CHECKED_FILE%" (
@@ -104,7 +121,7 @@ rem --- Core Logic Functions ---
         ) else (
             rem Check for files older than %UPDATE_PERIOD% days
             set "IS_OLD=false"
-            forfiles /P "%CACHE_DIR%" /M last_checked /D -%UPDATE_PERIOD% /C "cmd /c set IS_OLD=true" 2>nul
+            forfiles /P "%CCH_DIR%" /M last_checked /D -%UPDATE_PERIOD% /C "cmd /c set IS_OLD=true" 2>nul
             if "%IS_OLD%"=="true" (
                 call :LOG_INFO "Checking for updates [last check older than %UPDATE_PERIOD% days or file missing]..."
                 set "UPDATE_NEEDED=true"
@@ -124,8 +141,8 @@ rem --- Core Logic Functions ---
     )
 
     rem Setup directories
-    if not exist "%CACHE_DIR%" mkdir "%CACHE_DIR%" || (
-        call :LOG_ERROR "Could not create cache directory %CACHE_DIR%"
+    if not exist "%CCH_DIR%" mkdir "%CCH_DIR%" || (
+        call :LOG_ERROR "Could not create cache directory %CCH_DIR%"
         set "RETURN_CODE=1"
         goto :eof
     )
@@ -167,26 +184,32 @@ rem --- Core Logic Functions ---
 :START
 
 rem Load user-wide configuration (if exists)
-call :LOAD_CONFIG "%APP_HOME%\bootstrap.cfg"
+call :LOAD_CONFIG "%CONFIG_HOME%\bootstrap.cfg"
 
 rem Load local configuration (if exists)
-call :LOAD_CONFIG ".\%APP_DIR%\bootstrap.cfg"
+call :LOAD_CONFIG ".\.%APP_DIR%\bootstrap.cfg"
+
+rem LOG_LEVEL can be overridden by the user environment variable BS_LOG_LEVEL
+if defined BS_LOG_LEVEL set "LOG_LEVEL=%BS_LOG_LEVEL%"
 
 rem -----------------------------
 
-rem Define the remaining path variables using the (potentially overridden) NAME/UPDATE_PERIOD
-set "CACHE_DIR=%APP_HOME%\_cache"
-set "HAP_DIR=%APP_HOME%\app"
+rem Define the remaining path variables
+set "HAP_DIR=%APP_HOME%\bootstrap"
+set "BAK_DIR=%HAP_DIR%._bak_"
+set "NEW_DIR=%HAP_DIR%._new_"
 set "BIN_DIR=%HAP_DIR%\bin"
-set "APP_EXE=%BIN_DIR%\%APP_NAME%.cmd"
-set "ARCHIVE_FILE=%CACHE_DIR%\release.zip"
-set "LAST_CHECKED_FILE=%CACHE_DIR%\last_checked"
+set "CCH_DIR=%CACHE_HOME%\bootstrap"
+set "TMP_DIR=%CCH_DIR%\temp_install"
+set "APP_SCRIPT=%BIN_DIR%\%APP_NAME%"
+set "ARCHIVE_FILE=%CCH_DIR%\release.tgz"
+set "LAST_CHECKED_FILE=%CCH_DIR%\last_checked"
 
 rem --- Execution Flow ---
 
 rem Installation/Update Check
-call :LOG_INFO "Check for executable %APP_EXE%"
-if not exist "%APP_EXE%" (
+call :LOG_INFO "Check for executable %APP_SCRIPT%"
+if not exist "%APP_SCRIPT%.cmd" (
     call :LOG_INFO "Application not found. Starting download and install..."
     call :DOWNLOAD_AND_INSTALL
     if "!RETURN_CODE!" NEQ "0" (
@@ -199,19 +222,18 @@ if not exist "%APP_EXE%" (
 )
 
 rem Execution Handover (The final requirement)
-rem Get the full path of the current script's directory
-set "SCRIPT_DIR=%~dp0"
-rem Remove trailing backslash for comparison
-set "SCRIPT_DIR_CLEAN=%SCRIPT_DIR%"
-if "%SCRIPT_DIR_CLEAN:~-1%"=="\" set "SCRIPT_DIR_CLEAN=%SCRIPT_DIR_CLEAN:~0,-1%"
+rem Check if the currently executing script is NOT the application itself
+set "CURRENT_SCRIPT_PATH=%~f0"
+set "BIN_EXE_PATH1=%APP_SCRIPT%.cmd"
+set "BIN_EXE_PATH2=%SHARED_BIN%\%APP_NAME%.cmd"
 
-rem Check if the script's directory is NOT the bin directory
-if /I NOT "%SCRIPT_DIR_CLEAN%" EQU "%BIN_DIR%" (
-    call :LOG_INFO "Handing over execution to the installed application: %APP_EXE%"
-    rem Use 'start' to run the application and allow the current script to exit immediately.
-    rem %* passes all arguments to the new process.
-    "%APP_EXE%" %*
-    goto :eof
+rem Check if the current script path is NOT the path of the actual application executable
+if /I not "%CURRENT_SCRIPT_PATH%"=="%BIN_EXE_PATH1%" (
+    if /I not "%CURRENT_SCRIPT_PATH%"=="%BIN_EXE_PATH2%" (
+        call :LOG_INFO "Handing over execution to the installed application: %APP_SCRIPT%.cmd"
+        "%APP_SCRIPT%.cmd" %*
+        goto :eof
+    )
 )
 
 rem ##########################################

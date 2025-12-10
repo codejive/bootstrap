@@ -2,19 +2,23 @@
 
 # --- Configuration (Non-Overridable) ---
 APP_NAME="dummy"
-APP_DIR=".dummy-app"
+APP_DIR="dummy-app"
 DOWNLOAD_URL="https://github.com/codejive/bootstrap/releases/latest/download/release.tgz"
 # ---------------------------------------
 
-# Setup essential variables needed for config loading
 HOME_DIR="$HOME"
-APP_HOME="$HOME_DIR/$APP_DIR"
+
+# Define essential directories
+APP_HOME="$HOME_DIR/.local/share/$APP_DIR"
+CONFIG_HOME="$HOME_DIR/.config/$APP_DIR"
+CACHE_HOME="$HOME_DIR/.cache/$APP_DIR"
+SHARED_BIN="$HOME_DIR/.local/bin"
 
 # Define default overridable variables
 # The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
 UPDATE_PERIOD=3
 # Logging level (0-ERROR, 1-WARN, 2-INFO, 3-DEBUG, empty disables logging)
-LOG_LEVEL=0
+LOG_LEVEL=1
 
 # --- Configuration Loading ---
 # Function to load configuration variables from a file
@@ -27,20 +31,26 @@ load_config() {
 }
 
 # Load user-wide configuration (if exists)
-load_config "$APP_HOME/bootstrap.cfg"
+load_config "$CONFIG_HOME/bootstrap.cfg"
 
 # Load local configuration (if exists)
-load_config "./$APP_DIR/bootstrap.cfg"
+load_config "./.$APP_DIR/bootstrap.cfg"
+
+# LOG_LEVEL can be overridden by the user environment variable BS_LOG_LEVEL
+LOG_LEVEL=${BS_LOG_LEVEL:-$LOG_LEVEL}
 
 # -----------------------------
 
-# Define the remaining path variables using the (potentially overridden) APP_NAME/UPDATE_PERIOD
-CACHE_DIR="$APP_HOME/_cache"
-HAP_DIR="$APP_HOME/app"
+# Define the remaining path variables
+HAP_DIR="$APP_HOME/bootstrap"
+BAK_DIR="$HAP_DIR._bak_"
+NEW_DIR="$HAP_DIR._new_"
 BIN_DIR="$HAP_DIR/bin"
-APP_EXE="$BIN_DIR/$APP_NAME"
-ARCHIVE_FILE="$CACHE_DIR/release.tgz"
-LAST_CHECKED_FILE="$CACHE_DIR/last_checked"
+CCH_DIR="$CACHE_HOME/bootstrap"
+TMP_DIR="$CCH_DIR/temp_install"
+APP_SCRIPT="$BIN_DIR/$APP_NAME"
+ARCHIVE_FILE="$CCH_DIR/release.tgz"
+LAST_CHECKED_FILE="$CCH_DIR/last_checked"
 
 # Helper function for logging
 LOG_ERROR() {
@@ -60,27 +70,50 @@ LOG_INFO() {
 unpack_and_install() {
     # Unpack and clean up
     LOG_INFO "Unpacking application..."
-    # Remove existing installation directory if it exists before unpacking
-    rm -rf "$APP_HOME/temp_install"
-    mkdir -p "$APP_HOME/temp_install"
 
-    if ! tar -xzf "$ARCHIVE_FILE" -C "$APP_HOME/temp_install"; then
+    # Remove existing installation directory if it exists before unpacking
+    rm -rf "$TMP_DIR"
+
+    # Create a temporary directory for unpacking
+    mkdir -p "$TMP_DIR"
+
+    if ! tar -xzf "$ARCHIVE_FILE" -C "$TMP_DIR"; then
         LOG_ERROR "Failed to unpack archive $ARCHIVE_FILE"
-        rm -rf "$APP_HOME/temp_install"
+        rm -rf "$TMP_DIR"
         return 1
     fi
 
-    # Move all contents of temp_install to APP_HOME/app.new
+    # Move all contents of temp_install to NEW_DIR
     LOG_INFO "Moving contents to $HAP_DIR"
-    mv "$APP_HOME/temp_install" "$HAP_DIR.new"
+    mkdir -p "$APP_HOME"
+    mv "$TMP_DIR" "$NEW_DIR"
 
     # Replace the old app directory with the new one atomically
-    mv "$HAP_DIR" "$HAP_DIR.bak" 2>/dev/null || true
-    mv "$HAP_DIR.new" "$HAP_DIR"
-    rm -rf "$HAP_DIR.bak"
+    mv "$HAP_DIR" "$BAK_DIR" 2>/dev/null || true
+    mv "$NEW_DIR" "$HAP_DIR"
+    rm -rf "$BAK_DIR"
+
+    # Let's make sure the application script is executable
+    if [[ -f "$APP_SCRIPT" ]]; then
+        chmod +x "$APP_SCRIPT" 2>/dev/null || true
+    fi
+
+    # Copy application script(s) to shared bin
+    LOG_INFO "Making application available in shared bin directory: $SHARED_BIN"
+    mkdir -p "$SHARED_BIN"
+    # We always copy the Bash script (it should exist), even on Windows
+    cp -a "$APP_SCRIPT" "$SHARED_BIN/$APP_NAME"
+    if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]]; then
+        # On Windows we also copy the batch file (if it exists)
+        if [[ -f "$APP_SCRIPT.cmd" ]]; then
+            cp -a "$APP_SCRIPT.cmd" "$SHARED_BIN/$APP_NAME.cmd"
+        fi
+    fi
+
+    # TODO: warn user when the app is not available in their PATH
 
     # Clean up the temporary directory
-    rm -rf "$APP_HOME/temp_install"
+    rm -rf "$TMP_DIR"
 
     # Create/update the last_checked file
     touch "$LAST_CHECKED_FILE"
@@ -95,7 +128,7 @@ download_and_install() {
         LOG_INFO "Checking for updates [last check older than $UPDATE_PERIOD days or file missing]..."
 
         # Setup directories
-        mkdir -p "$CACHE_DIR" || { LOG_ERROR "Could not create cache directory $CACHE_DIR"; return 1; }
+        mkdir -p "$CCH_DIR" || { LOG_ERROR "Could not create cache directory $CCH_DIR"; return 1; }
 
         # Conditional Download
         # -z "$ARCHIVE_FILE" tells curl to only download if the remote file is newer than the local one.
@@ -131,8 +164,8 @@ download_and_install() {
 # --- Execution Flow ---
 
 # Installation/Update Check
-LOG_INFO "Check for executable $APP_EXE"
-if [ ! -f "$APP_EXE" ]; then
+LOG_INFO "Check for executable $APP_SCRIPT"
+if [ ! -f "$APP_SCRIPT" ]; then
     LOG_INFO "Application not found. Starting download and install..."
     download_and_install
     if [[ $? -ne 0 ]]; then
@@ -145,16 +178,17 @@ else
 fi
 
 # Execution Handover (The final requirement)
-# Check if the currently executing script ($0) is NOT the application itself
+# Check if the currently executing script is NOT the application itself
 # Use realpath to resolve symbolic links and get the canonical path
 CURRENT_SCRIPT_PATH=$(realpath "$0")
-BIN_EXE_PATH=$(realpath "$APP_EXE")
+BIN_EXE_PATH1=$(realpath "$APP_SCRIPT")
+BIN_EXE_PATH2=$(realpath "$SHARED_BIN/$APP_NAME")
 
 # Check if the current script path is NOT the path of the actual application executable
-if [ "$CURRENT_SCRIPT_PATH" != "$BIN_EXE_PATH" ]; then
-    LOG_INFO "Handing over execution to the installed application: $APP_EXE"
+if [[ "$CURRENT_SCRIPT_PATH" != "$BIN_EXE_PATH1" && "$CURRENT_SCRIPT_PATH" != "$BIN_EXE_PATH2" ]]; then
+    LOG_INFO "Handing over execution to the installed application: $APP_SCRIPT"
     # exec replaces the current script process with the application process
-    exec "$APP_EXE" "$@"
+    exec "$APP_SCRIPT" "$@"
 fi
 
 ##########################################

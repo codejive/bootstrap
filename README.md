@@ -20,7 +20,7 @@ These scripts handle the following responsibilities:
 
 These scripts do not handle:
 
-1. **PATH Modification:** They do not modify the system PATH or environment variables. The user must run the script from its location or add the application's bin directory to their PATH manually.
+1. **PATH Modification:** They do not modify the system `PATH` or environment variables. The scripts are always copied to the user bin directory `$HOME/.local/bin` which for Linux and Mac is most likely already on the user's `PATH`, but for Windows this is unlikely to be the case. So the user must either add that bin directory to their `PATH` manually or run the script from its installed location.
 2. **Dependency Management:** They do not install or manage dependencies for the application. It is assumed all required dependencies are part of the application package or already present on the system.
 3. **Complex Versioning:** They do not manage complex versioning schemes. The update check is based solely on file modification timestamps obtained from the download URL.
 4. **Rollback Mechanism:** There is no built-in rollback mechanism, or even an uninstaller, in case an update fails or introduces issues.
@@ -37,22 +37,22 @@ These variables are defined directly at the top of the scripts and **should not*
 | Variable         | Default Value (Example)   | Description                                                                              |
 |:-----------------|:--------------------------|:-----------------------------------------------------------------------------------------|
 | **APP_NAME**     | `APP`                     | The short name of the application.                                                       |
-| **APP_DIR**      | `.APP`                    | The installation directory name of the application.                                      |
+| **APP_DIR**      | `APP`                     | The installation directory name of the application.                                      |
 | **DOWNLOAD_URL** | `https://example.com/...` | The direct download URL for the release archive (.tgz for Bash, .zip or .tgz for Batch). |
 
 ### **2\. Overridable Variables**
 
 These variables have defaults set within the script but can be overridden by placing them in one of the following configuration files (in order of precedence):
 
-1. `$HOME/<APP_DIR>/bootstrap.cfg` (User-wide defaults)
-2. `./<APP_DIR>/bootstrap.cfg` (Local overrides)
+1. `$HOME/.config/<APP_DIR>/bootstrap.cfg` (User-wide defaults)
+2. `./.<APP_DIR>/bootstrap.cfg` (Local overrides)
 
 The format for the configuration files is simple `KEY=VALUE`, with comments starting with `#`.
 
 | Variable          | Default Value | Description                                                                                                                                                           |
 |:------------------|:--------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **UPDATE_PERIOD** | 3             | The number of days after which an update check must be performed. If the last\_checked file is older than this period, the script will attempt to contact the server. |
-| **LOG_LEVEL**     | \<empty>      | Logging level. Default empty/silent; set to anything, e.g., 'DEBUG', to enable logging                                                                               |
+| **LOG_LEVEL**     | 1             | Logging level. 0 = ERROR, 1 = WARN, 2 = INFO, 3 = DEBUG. Can be temporarily overridden on the command line with `BS_LOG_LEVEL`.                                       |
 
 **Example bootstrap.cfg content:**
 
@@ -61,7 +61,7 @@ The format for the configuration files is simple `KEY=VALUE`, with comments star
 UPDATE_PERIOD=7
 
 # You can add other configurations here later  
-# LOG_LEVEL=DEBUG
+# LOG_LEVEL=3
 ```
 
 ## **Script Details**
