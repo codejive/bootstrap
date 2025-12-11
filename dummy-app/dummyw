@@ -1,11 +1,19 @@
 #!/bin/bash
 
-# --- Configuration (Non-Overridable) ---
+# --- Configuration ----------------------
 APP_NAME="dummy"
 APP_DIR="dummy-app"
-# --- Configuration (Overridable) -------
 DOWNLOAD_URL="https://github.com/codejive/bootstrap/releases/latest/download/release.tgz"
-# ---------------------------------------
+# ----------------------------------------
+# Should we install the wrapper scripts into the user's shared bin directory?
+INSTALL_BIN=no
+# Do we enable the uninstall feature? (ie passing the single argument '__UNINSTALL' to this script)
+ENABLE_UNINSTALL=yes
+# The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
+UPDATE_PERIOD=3
+# Logging level (0-ERROR, 1-WARN, 2-INFO, 3-DEBUG, empty disables logging)
+LOG_LEVEL=1
+# ----------------------------------------
 
 HOME_DIR="$HOME"
 
@@ -14,12 +22,6 @@ APP_HOME="$HOME_DIR/.local/share/$APP_DIR"
 CONFIG_HOME="$HOME_DIR/.config/$APP_DIR"
 CACHE_HOME="$HOME_DIR/.cache/$APP_DIR"
 SHARED_BIN="$HOME_DIR/.local/bin"
-
-# Define default overridable variables
-# The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
-UPDATE_PERIOD=3
-# Logging level (0-ERROR, 1-WARN, 2-INFO, 3-DEBUG, empty disables logging)
-LOG_LEVEL=1
 
 # --- Configuration Loading ---
 # Function to load configuration variables from a file
@@ -36,6 +38,12 @@ load_config "$CONFIG_HOME/bootstrap.cfg"
 
 # Load local configuration (if exists)
 load_config "./.$APP_DIR/bootstrap.cfg"
+
+# INSTALL_BIN can be overridden by the user environment variable BS_INSTALL_BIN
+INSTALL_BIN=${BS_INSTALL_BIN:-$INSTALL_BIN}
+
+# ENABLE_UNINSTALL can be overridden by the user environment variable BS_ENABLE_UNINSTALL
+ENABLE_UNINSTALL=${BS_ENABLE_UNINSTALL:-$ENABLE_UNINSTALL}
 
 # LOG_LEVEL can be overridden by the user environment variable BS_LOG_LEVEL
 LOG_LEVEL=${BS_LOG_LEVEL:-$LOG_LEVEL}
@@ -105,21 +113,23 @@ unpack_and_install() {
         chmod +x "$APP_SCRIPT" 2>/dev/null || true
     fi
 
-    # Copy application script(s) to shared bin
-    LOG_INFO "Making application available in shared bin directory: $SHARED_BIN"
-    mkdir -p "$SHARED_BIN"
-    # We always copy the Bash script (it should exist), even on Windows
-    cp -a "$APP_SCRIPT" "$SHARED_BIN/$APP_NAME"
-    if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]]; then
-        # On Windows we also copy the batch file (if it exists)
-        if [[ -f "$APP_SCRIPT.cmd" ]]; then
-            cp -a "$APP_SCRIPT.cmd" "$SHARED_BIN/$APP_NAME.cmd"
-        fi
-    fi
+    if [[ "$INSTALL_BIN" == "yes" ]]; then
+      # Copy application script(s) to shared bin
+      LOG_INFO "Making application available in shared bin directory: $SHARED_BIN"
+      mkdir -p "$SHARED_BIN"
+      # We always copy the Bash script (it should exist), even on Windows
+      cp -a "$APP_SCRIPT" "$SHARED_BIN/$APP_NAME"
+      if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]]; then
+          # On Windows we also copy the batch file (if it exists)
+          if [[ -f "$APP_SCRIPT.cmd" ]]; then
+              cp -a "$APP_SCRIPT.cmd" "$SHARED_BIN/$APP_NAME.cmd"
+          fi
+      fi
 
-    # Warn user when the app is not available in their PATH
-    if [ ! -x "$(command -v "$APP_NAME")" ]; then
-        LOG_WARN "'$SHARED_BIN' is not in your PATH. You may want to add it to run '$APP_NAME' from anywhere."
+      # Warn user when the app is not available in their PATH
+      if [ ! -x "$(command -v "$APP_NAME")" ]; then
+          LOG_WARN "'$SHARED_BIN' is not in your PATH. You may want to add it to run '$APP_NAME' from anywhere."
+      fi
     fi
 
     # Clean up the temporary directory
@@ -172,6 +182,24 @@ download_and_install() {
 }
 
 # --- Execution Flow ---
+
+# Check if uninstall was requested
+if [[ "$ENABLE_UNINSTALL" == "yes" && "$#" -eq 1 && "$1" == "__UNINSTALL" ]]; then
+    LOG_INFO "Uninstalling application $APP_NAME..."
+    # Remove APP_HOME/bootstrap
+    rm -rf "$HAP_DIR" 2>/dev/null || true
+    # Remove APP_HOME if it's now empty
+    rmdir "$APP_HOME" 2>/dev/null || true
+    # Remove the application's cache folder entirely
+    rm -rf "$CACHE_HOME" 2>/dev/null || true
+    # Remove shared bin scripts if installed
+    if [[ "$INSTALL_BIN" == "yes" ]]; then
+        rm -f "$SHARED_BIN/$APP_NAME" 2>/dev/null || true
+        rm -f "$SHARED_BIN/$APP_NAME.cmd" 2>/dev/null || true
+    fi
+    LOG_INFO "Uninstallation complete."
+    exit 0
+fi
 
 # Installation/Update Check
 LOG_INFO "Check for executable $APP_SCRIPT"

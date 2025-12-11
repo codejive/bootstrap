@@ -1,11 +1,19 @@
 @echo off
 setlocal enableExtensions enableDelayedExpansion
 
-rem --- Configuration (Non-Overridable) ---
+rem --- Configuration ---------------------
 set APP_NAME=dummy
 set APP_DIR=dummy-app
-rem --- Configuration (Overridable) -------
 set DOWNLOAD_URL=https://github.com/codejive/bootstrap/releases/latest/download/release.tgz
+rem ---------------------------------------
+rem Should we install the wrapper scripts into the user's shared bin directory?
+set INSTALL_BIN=no
+rem Do we enable the uninstall feature? (ie passing the single argument '__UNINSTALL' to this script)
+set ENABLE_UNINSTALL=yes
+rem The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
+set UPDATE_PERIOD=3
+rem Logging level (0-ERROR, 1-WARN, 2-INFO, 3-DEBUG, empty disables logging)
+set "LOG_LEVEL=1"
 rem ---------------------------------------
 
 set "HOME_DIR=%USERPROFILE%"
@@ -15,12 +23,6 @@ set "APP_HOME=%HOME_DIR%\.local\share\%APP_DIR%"
 set "CONFIG_HOME=%HOME_DIR%\.config\%APP_DIR%"
 set "CACHE_HOME=%HOME_DIR%\.cache\%APP_DIR%"
 set "SHARED_BIN=%HOME_DIR%\.local\bin"
-
-rem Define default overridable variables
-rem The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
-set UPDATE_PERIOD=3
-rem Logging level (0-ERROR, 1-WARN, 2-INFO, 3-DEBUG, empty disables logging)
-set "LOG_LEVEL=1"
 
 goto :START
 
@@ -95,22 +97,24 @@ rem --- Core Logic Functions ---
         move /Y "%NEW_DIR%" "%HAP_DIR%" > nul
     )
 
-    rem Copy application script(s) to shared bin
-    if defined SHARED_BIN (
-        call :LOG_INFO "Making application available in shared bin directory: %SHARED_BIN%"
-        if not exist "%SHARED_BIN%" mkdir "%SHARED_BIN%"
-        rem We always copy the Bash script (if it exists), even on Windows
-        if exist "%APP_SCRIPT%" (
-            copy /Y "%APP_SCRIPT%" "%SHARED_BIN%\%APP_NAME%" > nul
+    if "%INSTALL_BIN%"=="yes" (
+        rem Copy application script(s) to shared bin
+        if defined SHARED_BIN (
+            call :LOG_INFO "Making application available in shared bin directory: %SHARED_BIN%"
+            if not exist "%SHARED_BIN%" mkdir "%SHARED_BIN%"
+            rem We always copy the Bash script (if it exists), even on Windows
+            if exist "%APP_SCRIPT%" (
+                copy /Y "%APP_SCRIPT%" "%SHARED_BIN%\%APP_NAME%" > nul
+            )
+            rem We also copy the batch file (it should exist)
+            copy /Y "%APP_SCRIPT%.cmd" "%SHARED_BIN%\%APP_NAME%.cmd" > nul
         )
-        rem We also copy the batch file (it should exist)
-        copy /Y "%APP_SCRIPT%.cmd" "%SHARED_BIN%\%APP_NAME%.cmd" > nul
-    )
 
-    rem Warn user when the app is not available in their PATH
-    where /q "%APP_NAME%" 2>nul
-    if %ERRORLEVEL% NEQ 0 (
-        call :LOG_WARN "'%SHARED_BIN%' is not in your PATH. You may want to add it to run '%APP_NAME%' from anywhere."
+        rem Warn user when the app is not available in their PATH
+        where /q "%APP_NAME%" 2>nul
+        if %ERRORLEVEL% NEQ 0 (
+            call :LOG_WARN "'%SHARED_BIN%' is not in your PATH. You may want to add it to run '%APP_NAME%' from anywhere."
+        )
     )
 
     rem Clean up the temporary directory
@@ -203,6 +207,12 @@ call :LOAD_CONFIG "%CONFIG_HOME%\bootstrap.cfg"
 rem Load local configuration (if exists)
 call :LOAD_CONFIG ".\.%APP_DIR%\bootstrap.cfg"
 
+rem INSTALL_BIN can be overridden by the user environment variable BS_INSTALL_BIN
+if defined BS_INSTALL_BIN set "INSTALL_BIN=%BS_INSTALL_BIN%"
+
+rem ENABLE_UNINSTALL can be overridden by the user environment variable BS_ENABLE_UNINSTALL
+if defined BS_ENABLE_UNINSTALL set "ENABLE_UNINSTALL=%BS_ENABLE_UNINSTALL%"
+
 rem LOG_LEVEL can be overridden by the user environment variable BS_LOG_LEVEL
 if defined BS_LOG_LEVEL set "LOG_LEVEL=%BS_LOG_LEVEL%"
 
@@ -220,6 +230,24 @@ set "ARCHIVE_FILE=%CCH_DIR%\release.tgz"
 set "LAST_CHECKED_FILE=%CCH_DIR%\last_checked"
 
 rem --- Execution Flow ---
+
+rem Check if uninstall was requested
+if "%ENABLE_UNINSTALL%"=="yes" if "%~1"=="__UNINSTALL" if "%~2"=="" (
+    call :LOG_INFO "Uninstalling application %APP_NAME%..."
+    rem Remove APP_HOME/bootstrap
+    if exist "%HAP_DIR%" rmdir /s /q "%HAP_DIR%" >nul 2>&1
+    rem Remove APP_HOME if it's now empty
+    if exist "%APP_HOME%" rmdir "%APP_HOME%" >nul 2>&1
+    rem Remove the application's cache folder
+    if exist "%CACHE_HOME%" rmdir /s /q "%CACHE_HOME%" >nul 2>&1
+    rem Remove shared bin scripts if installed
+    if "%INSTALL_BIN%"=="yes" (
+        if exist "%SHARED_BIN%\%APP_NAME%" del /f /q "%SHARED_BIN%\%APP_NAME%" >nul 2>&1
+        if exist "%SHARED_BIN%\%APP_NAME%.cmd" del /f /q "%SHARED_BIN%\%APP_NAME%.cmd" >nul 2>&1
+    )
+    call :LOG_INFO "Uninstallation complete."
+    exit /b 0
+)
 
 rem Installation/Update Check
 call :LOG_INFO "Check for executable %APP_SCRIPT%"
