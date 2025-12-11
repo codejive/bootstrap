@@ -10,11 +10,12 @@ The primary goal is to provide an extremely simply, user-friendly copy&pastable 
 
 These scripts handle the following responsibilities:
 
-1. **First-Time Installation:** If the application is not found, it performs a complete download and unpacks the binary into a hidden application directory in the user’s home directory.
+1. **First-Time Installation:** If the application is not found, it performs a complete download and unpacks the binary into the user’s `$HOME/.local/share` directory.
 2. **Conditional Updates:** It checks for updates conditionally. If the local file is older than the remote one, it downloads and unpacks the new version, minimizing unnecessary data transfer.
 3. **Lazy Update Checking:** It only checks the remote server for updates if the last check was done after the configured time period has passed (default is 3 days).
 4. **Execution Handover:** The script acts as a self-installer/updater wrapper. After ensuring the application is ready, it hands over execution to the application to be started.
 5. **Configuration Overrides:** Key variables, like the update frequency, can be configured without editing the main script file.
+6. **Uninstall:** There is a rudimentary uninstall mechanism that can be optionally enabled.
 
 ## **Non-Features**
 
@@ -23,8 +24,7 @@ These scripts do not handle:
 1. **PATH Modification:** They do not modify the system `PATH` or environment variables. The scripts are always copied to the user bin directory `$HOME/.local/bin` which for Linux and Mac is most likely already on the user's `PATH`, but for Windows this is unlikely to be the case. So the user must either add that bin directory to their `PATH` manually or run the script from its installed location.
 2. **Dependency Management:** They do not install or manage dependencies for the application. It is assumed all required dependencies are part of the application package or already present on the system.
 3. **Complex Versioning:** They do not manage complex versioning schemes. The update check is based solely on file modification timestamps obtained from the download URL.
-4. **Rollback Mechanism:** There is no built-in rollback mechanism, or even an uninstaller, in case an update fails or introduces issues.
-5. **Multi-User Installations:** The installation is per-user and does not support system-wide installations.
+4. **Multi-User Installations:** The installation is per-user and does not support system-wide installations.
 
 ## **Configuration**
 
@@ -49,10 +49,12 @@ These variables have defaults set within the script but can be overridden by pla
 
 The format for the configuration files is simple `KEY=VALUE`, with comments starting with `#`.
 
-| Variable          | Default Value | Description                                                                                                                                                           |
-|:------------------|:--------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **UPDATE_PERIOD** | 3             | The number of days after which an update check must be performed. If the last\_checked file is older than this period, the script will attempt to contact the server. |
-| **LOG_LEVEL**     | 1             | Logging level. 0 = ERROR, 1 = WARN, 2 = INFO, 3 = DEBUG. Can be temporarily overridden on the command line with `BS_LOG_LEVEL`.                                       |
+| Variable             | Default Value | Description                                                                                                                                                                                                         |
+|:---------------------|:--------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **INSTALL_BIN**      | no            | Determines if the wrapper scripts should be installed to the user's shared bin folder. Disabled by default, set to "yes" to enable. Can be temporarily overridden on the command line with `BS_INSTALL_BIN`.        |
+| **ENABLE_UNINSTALL** | yes           | Determines if the uninstall feature should be enabled or not. Enabled by default, set to "no" (or anything besides "yes") to disable. Can be temporarily overridden on the command line with `BS_ENABLE_UNINSTALL`. |
+| **UPDATE_PERIOD**    | 3             | The number of days after which an update check must be performed. If the last\_checked file is older than this period, the script will attempt to contact the server.                                               |
+| **LOG_LEVEL**        | 1             | Logging level. 0 = ERROR, 1 = WARN, 2 = INFO, 3 = DEBUG. Can be temporarily overridden on the command line with `BS_LOG_LEVEL`.                                                                                     |
 
 **Example bootstrap.cfg content:**
 
@@ -102,13 +104,13 @@ README.md
 **IMPORTANT:**
 1. **Permissions:** Ensure that the `myapp` file inside the `bin` folder has executable permissions set (especially for Linux/macOS).
 2. **Naming:** It is required that scripts in the `bin` are named the same as the variable `NAME` found inside them (see [Usage](#usage) below).
-3. **No conflicts:** Do _not_ include the `bootstrap.cfg` file inside the archive, as it would override user configurations on each update. And no folder or file named `_cache` should exist either.
 
 ### **Uploading**
 
-1. **Configure:** Edit the `NAME` and `DOWNLOAD_URL` variables (and possibly `APP_DIR` if you want a different name than the default) at the top of both scripts (`myapp` and `myapp.bat`).
-2. **Rename:** Rename the scripts to match your application's name.
-3. **Upload:** Upload the release archive to your hosting location and ensure the `DOWNLOAD_URL` variable points to it.
+1. **Required:** Edit the `NAME`, `APP_DIR`, and `DOWNLOAD_URL` variables at the top of both scripts (`myapp` and `myapp.bat`).
+2. **Configuration:** Optionally, decide if you want to keep uninstallation enabled or not (`ENABLE_UNINSTALL`) and if you want the scripts to install themselves to the user bin folder automatically (`INSTALL_BIN`).
+3. **Rename:** Rename the scripts to match your application's name.
+4. **Upload:** Upload the release archive to your hosting location and ensure the `DOWNLOAD_URL` variable points to it.
 
 ## **Usage**
 
@@ -126,6 +128,17 @@ After the preparation has been completed and the release archive has been upload
 ```
 
 The first time you run it, the application will download and install itself to the user’s home directory (`$HOME/$APP_DIR`). Subsequent runs will check for updates if the configured period has passed.
+
+### **Uninstallation**
+
+If the uninstallation feature is enabled (`ENABLE_UNINSTALL=yes`), you can uninstall the application by running the script with a single `__UNINSTALL` argument (capital letters required!):
+
+```# On Linux/Mac  
+./foow __UNINSTALL
+
+# On Windows  
+.\foow.cmd __UNINSTALL
+```
 
 ### Force new version check
 
