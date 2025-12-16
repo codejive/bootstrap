@@ -36,13 +36,13 @@ LOG_ERROR() {
 
 LOG_WARN() {
     if [[ -n "$LOG_LEVEL" && "1" -le "$LOG_LEVEL" ]]; then
-      echo -e "[\033[33m$APP_NAME WARN\033[0m] $1"
+      echo -e "[\033[33m$APPNM WARN\033[0m] $1"
     fi
 }
 
 LOG_INFO() {
     if [[ -n "$LOG_LEVEL" && "2" -le "$LOG_LEVEL" ]]; then
-      echo "[$APP_NAME INFO] $1"
+      echo "[$APPNM INFO] $1"
     fi
 }
 
@@ -147,7 +147,7 @@ download_and_install() {
     fi
 }
 
-function install_or_update() {
+function install_app() {
   LOG_INFO "Check for executable $APP_SCRIPT"
   if [ ! -f "$APP_SCRIPT" ]; then
       LOG_INFO "Application not found. Starting download and install..."
@@ -162,7 +162,7 @@ function install_or_update() {
   fi
 }
 
-function uninstall() {
+function uninstall_app() {
     LOG_INFO "Uninstalling application $APPNM..."
     # Remove APP_HOME/bootstrap
     rm -rf "$HAP_DIR" 2>/dev/null || true
@@ -204,9 +204,6 @@ function perform() {
     # LOG_LEVEL can be overridden by the user environment variable BS_LOG_LEVEL
     LOG_LEVEL=${BS_LOG_LEVEL:-$LOG_LEVEL}
 
-    # -----------------------------
-
-    # Define the remaining path variables
     HAP_DIR="$APP_HOME/bootstrap"
     BAK_DIR="$HAP_DIR._bak_"
     NEW_DIR="$HAP_DIR._new_"
@@ -218,26 +215,29 @@ function perform() {
     LAST_CHECKED_FILE="$CCH_DIR/last_checked"
 
     case "$action" in
-        install-app)
-            install_or_update
+        install_app)
+            install_app
             ;;
-        uninstall-app)
-            uninstall
+        uninstall_app)
+            if [[ "$ENABLE_UNINSTALL" == "yes" ]]; then
+                uninstall_app
+                exit 0
+            fi
             ;;
     esac
 }
 
 # Check if uninstall was requested
-if [[ "$ENABLE_UNINSTALL" == "yes" && "$#" -eq 1 && "$1" == "__UNINSTALL" ]]; then
-    perform "uninstall-app" "$APP_NAME" "$APP_DIR" "$DOWNLOAD_URL"
-    exit 0
+if [[ "$#" -eq 1 && "$1" == "__UNINSTALL" ]]; then
+    perform "uninstall_app" "$APP_NAME" "$APP_DIR" "$DOWNLOAD_URL"
 fi
 
 # Installation/Update Check
-perform "install-app" "$APP_NAME" "$APP_DIR" "$DOWNLOAD_URL"
+perform "install_app" "$APP_NAME" "$APP_DIR" "$DOWNLOAD_URL"
 
 # Execution Handover
 # Check if the currently executing script is NOT the application itself
+APPNM="$APP_NAME"
 APP_SCRIPT="$HOME_DIR/.local/share/$APP_DIR/bootstrap/bin/$APP_NAME"
 CURRENT_SCRIPT_PATH=$(realpath "$0")
 BIN_EXE_PATH1=$(realpath "$APP_SCRIPT")

@@ -17,11 +17,6 @@ set "LOG_LEVEL=1"
 rem ---------------------------------------
 
 set "HOME_DIR=%USERPROFILE%"
-
-rem Define essential directories
-set "APP_HOME=%HOME_DIR%\.local\share\%APP_DIR%"
-set "CONFIG_HOME=%HOME_DIR%\.config\%APP_DIR%"
-set "CACHE_HOME=%HOME_DIR%\.cache\%APP_DIR%"
 set "SHARED_BIN=%HOME_DIR%\.local\bin"
 
 goto :START
@@ -38,7 +33,7 @@ rem Helper subroutine to load configuration from a file
     )
     goto :eof
 
-rem Helper function for logging
+rem Helper functions for logging
 :LOG_ERROR
     if "%LOG_LEVEL%" EQU "" goto :eof
     if 0 LEQ "%LOG_LEVEL%" 2>nul (
@@ -49,18 +44,16 @@ rem Helper function for logging
 :LOG_WARN
     if "%LOG_LEVEL%" EQU "" goto :eof
     if 1 LEQ %LOG_LEVEL% 2>nul (
-        echo [[33m%APP_NAME% WARN[0m] %~1
+        echo [[33m%APPNM% WARN[0m] %~1
     )
     goto :eof
 
 :LOG_INFO
     if "%LOG_LEVEL%" EQU "" goto :eof
     if 2 LEQ %LOG_LEVEL% 2>nul (
-        echo [%APP_NAME% INFO] %~1
+        echo [%APPNM% INFO] %~1
     )
     goto :eof
-
-rem --- Core Logic Functions ---
 
 :UNPACK_AND_INSTALL
     set "RETURN_CODE=0"
@@ -104,16 +97,16 @@ rem --- Core Logic Functions ---
             if not exist "%SHARED_BIN%" mkdir "%SHARED_BIN%"
             rem We always copy the Bash script (if it exists), even on Windows
             if exist "%APP_SCRIPT%" (
-                copy /Y "%APP_SCRIPT%" "%SHARED_BIN%\%APP_NAME%" > nul
+                copy /Y "%APP_SCRIPT%" "%SHARED_BIN%\%APPNM%" > nul
             )
             rem We also copy the batch file (it should exist)
-            copy /Y "%APP_SCRIPT%.cmd" "%SHARED_BIN%\%APP_NAME%.cmd" > nul
+            copy /Y "%APP_SCRIPT%.cmd" "%SHARED_BIN%\%APPNM%.cmd" > nul
         )
 
         rem Warn user when the app is not available in their PATH
-        where /q "%APP_NAME%" 2>nul
-        if %ERRORLEVEL% NEQ 0 (
-            call :LOG_WARN "'%SHARED_BIN%' is not in your PATH. You may want to add it to run '%APP_NAME%' from anywhere."
+        where /q "%APPNM%" 2>nul
+        if errorlevel 1 (
+            call :LOG_WARN "'%SHARED_BIN%' is not in your PATH. You may want to add it to run '%APPNM%' from anywhere."
         )
     )
 
@@ -169,7 +162,7 @@ rem --- Core Logic Functions ---
     rem --remote-time (-r) ensures the new file uses the remote timestamp.
     rem Use -w "%{http_code}" to capture the status code
     set "HTTP_CODE=0"
-    for /f %%i in ('curl -w "%%{http_code}" -fsSL --remote-time -z "!ARCHIVE_FILE!" "!DOWNLOAD_URL!" -o "!ARCHIVE_FILE!"') do (
+    for /f %%i in ('curl -w "%%{http_code}" -fsSL --remote-time -z "!ARCHIVE_FILE!" "!DLURL!" -o "!ARCHIVE_FILE!"') do (
         set "HTTP_CODE=%%i"
     )
     call :LOG_INFO "Received HTTP code: !HTTP_CODE!"
@@ -199,41 +192,23 @@ rem --- Core Logic Functions ---
     call :LOG_INFO "Download/update check complete"
     goto :eof
 
-:START
+:INSTALL_APP
+    call :LOG_INFO "Check for executable %APP_SCRIPT%"
+    if not exist "%APP_SCRIPT%.cmd" (
+        call :LOG_INFO "Application not found. Starting download and install..."
+        call :DOWNLOAD_AND_INSTALL
+        if "!RETURN_CODE!" NEQ "0" (
+            call :LOG_ERROR "Installation of application failed!"
+            (goto) 2>nul & exit /b 1
+        )
+    ) else (
+        call :LOG_INFO "Application found. Check if there is an update to install..."
+        call :DOWNLOAD_AND_INSTALL
+    )
+    goto :eof
 
-rem Load user-wide configuration (if exists)
-call :LOAD_CONFIG "%CONFIG_HOME%\bootstrap.cfg"
-
-rem Load local configuration (if exists)
-call :LOAD_CONFIG ".\.%APP_DIR%\bootstrap.cfg"
-
-rem INSTALL_BIN can be overridden by the user environment variable BS_INSTALL_BIN
-if defined BS_INSTALL_BIN set "INSTALL_BIN=%BS_INSTALL_BIN%"
-
-rem ENABLE_UNINSTALL can be overridden by the user environment variable BS_ENABLE_UNINSTALL
-if defined BS_ENABLE_UNINSTALL set "ENABLE_UNINSTALL=%BS_ENABLE_UNINSTALL%"
-
-rem LOG_LEVEL can be overridden by the user environment variable BS_LOG_LEVEL
-if defined BS_LOG_LEVEL set "LOG_LEVEL=%BS_LOG_LEVEL%"
-
-rem -----------------------------
-
-rem Define the remaining path variables
-set "HAP_DIR=%APP_HOME%\bootstrap"
-set "BAK_DIR=%HAP_DIR%._bak_"
-set "NEW_DIR=%HAP_DIR%._new_"
-set "BIN_DIR=%HAP_DIR%\bin"
-set "CCH_DIR=%CACHE_HOME%\bootstrap"
-set "TMP_DIR=%CCH_DIR%\temp_install"
-set "APP_SCRIPT=%BIN_DIR%\%APP_NAME%"
-set "ARCHIVE_FILE=%CCH_DIR%\release.tgz"
-set "LAST_CHECKED_FILE=%CCH_DIR%\last_checked"
-
-rem --- Execution Flow ---
-
-rem Check if uninstall was requested
-if "%ENABLE_UNINSTALL%"=="yes" if "%~1"=="__UNINSTALL" if "%~2"=="" (
-    call :LOG_INFO "Uninstalling application %APP_NAME%..."
+:UNINSTALL_APP
+    call :LOG_INFO "Uninstalling application %APPNM%..."
     rem Remove APP_HOME/bootstrap
     if exist "%HAP_DIR%" rmdir /s /q "%HAP_DIR%" >nul 2>&1
     rem Remove APP_HOME if it's now empty
@@ -242,29 +217,72 @@ if "%ENABLE_UNINSTALL%"=="yes" if "%~1"=="__UNINSTALL" if "%~2"=="" (
     if exist "%CACHE_HOME%" rmdir /s /q "%CACHE_HOME%" >nul 2>&1
     rem Remove shared bin scripts if installed
     if "%INSTALL_BIN%"=="yes" (
-        if exist "%SHARED_BIN%\%APP_NAME%" del /f /q "%SHARED_BIN%\%APP_NAME%" >nul 2>&1
-        if exist "%SHARED_BIN%\%APP_NAME%.cmd" del /f /q "%SHARED_BIN%\%APP_NAME%.cmd" >nul 2>&1
+        if exist "%SHARED_BIN%\%APPNM%" del /f /q "%SHARED_BIN%\%APPNM%" >nul 2>&1
+        if exist "%SHARED_BIN%\%APPNM%.cmd" del /f /q "%SHARED_BIN%\%APPNM%.cmd" >nul 2>&1
     )
     call :LOG_INFO "Uninstallation complete."
-    exit /b 0
+    goto :eof
+
+:PERFORM
+    set action=%~1
+    set APPNM=%~2
+    set APPDR=%~3
+    set DLURL=%~4
+
+    rem Define essential directories
+    set "APP_HOME=%HOME_DIR%\.local\share\%APPDR%"
+    set "CONFIG_HOME=%HOME_DIR%\.config\%APPDR%"
+    set "CACHE_HOME=%HOME_DIR%\.cache\%APPDR%"
+
+    rem Load user-wide configuration (if exists)
+    call :LOAD_CONFIG "%CONFIG_HOME%\bootstrap.cfg"
+
+    rem Load local configuration (if exists)
+    call :LOAD_CONFIG ".\.%APPDR%\bootstrap.cfg"
+
+    rem INSTALL_BIN can be overridden by the user environment variable BS_INSTALL_BIN
+    if defined BS_INSTALL_BIN set "INSTALL_BIN=%BS_INSTALL_BIN%"
+
+    rem ENABLE_UNINSTALL can be overridden by the user environment variable BS_ENABLE_UNINSTALL
+    if defined BS_ENABLE_UNINSTALL set "ENABLE_UNINSTALL=%BS_ENABLE_UNINSTALL%"
+
+    rem LOG_LEVEL can be overridden by the user environment variable BS_LOG_LEVEL
+    if defined BS_LOG_LEVEL set "LOG_LEVEL=%BS_LOG_LEVEL%"
+
+    set "HAP_DIR=%APP_HOME%\bootstrap"
+    set "BAK_DIR=%HAP_DIR%._bak_"
+    set "NEW_DIR=%HAP_DIR%._new_"
+    set "BIN_DIR=%HAP_DIR%\bin"
+    set "CCH_DIR=%CACHE_HOME%\bootstrap"
+    set "TMP_DIR=%CCH_DIR%\temp_install"
+    set "APP_SCRIPT=%BIN_DIR%\%APPNM%"
+    set "ARCHIVE_FILE=%CCH_DIR%\release.tgz"
+    set "LAST_CHECKED_FILE=%CCH_DIR%\last_checked"
+
+    if "%action%"=="install_app" (
+        call :INSTALL_APP
+    ) else if "%action%"=="uninstall_app" (
+        if "%ENABLE_UNINSTALL%"=="yes" (
+            call :UNINSTALL_APP
+            (goto) 2>nul & exit /b 0
+        )
+    )
+
+    goto :eof
+
+:START
+
+rem Check if uninstall was requested
+if "%~1"=="__UNINSTALL" if "%~2"=="" (
+    call :PERFORM "uninstall_app" "%APP_NAME%" "%APP_DIR%" "%DOWNLOAD_URL%"
 )
 
 rem Installation/Update Check
-call :LOG_INFO "Check for executable %APP_SCRIPT%"
-if not exist "%APP_SCRIPT%.cmd" (
-    call :LOG_INFO "Application not found. Starting download and install..."
-    call :DOWNLOAD_AND_INSTALL
-    if "!RETURN_CODE!" NEQ "0" (
-        call :LOG_ERROR "Installation of application failed!"
-        exit /b 1
-    )
-) else (
-    call :LOG_INFO "Application found. Check if there is an update to install..."
-    call :DOWNLOAD_AND_INSTALL
-)
+call :PERFORM "install_app" "%APP_NAME%" "%APP_DIR%" "%DOWNLOAD_URL%"
 
 rem Execution Handover (The final requirement)
 rem Check if the currently executing script is NOT the application itself
+set "APP_SCRIPT=%HOME_DIR%\.local\share\%APP_DIR%\bootstrap\bin\%APP_NAME%"
 set "CURRENT_SCRIPT_PATH=%~f0"
 set "BIN_EXE_PATH1=%APP_SCRIPT%.cmd"
 set "BIN_EXE_PATH2=%SHARED_BIN%\%APP_NAME%.cmd"
@@ -282,11 +300,10 @@ rem ##########################################
 rem # BELOW THIS POINT YOU PUT YOUR OWN CODE #
 rem ##########################################
 
-rem This part is the "whatever might be there" section.
-call :LOG_INFO "Running inside the application's environment [%BIN_DIR%]"
-
 rem Your application's main logic or final execution step would go here if this script
 rem *is* the final executable. Otherwise you can call out to other scripts or binaries as needed.
+
+call :LOG_INFO "This would be your application."
 
 rem For simplicity, we just print a success message and exit.
 echo ------------------------------------
