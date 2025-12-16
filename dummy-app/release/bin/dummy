@@ -16,14 +16,8 @@ LOG_LEVEL=1
 # ----------------------------------------
 
 HOME_DIR="$HOME"
-
-# Define essential directories
-APP_HOME="$HOME_DIR/.local/share/$APP_DIR"
-CONFIG_HOME="$HOME_DIR/.config/$APP_DIR"
-CACHE_HOME="$HOME_DIR/.cache/$APP_DIR"
 SHARED_BIN="$HOME_DIR/.local/bin"
 
-# --- Configuration Loading ---
 # Function to load configuration variables from a file
 load_config() {
     local config_file="$1"
@@ -33,35 +27,7 @@ load_config() {
     fi
 }
 
-# Load user-wide configuration (if exists)
-load_config "$CONFIG_HOME/bootstrap.cfg"
-
-# Load local configuration (if exists)
-load_config "./.$APP_DIR/bootstrap.cfg"
-
-# INSTALL_BIN can be overridden by the user environment variable BS_INSTALL_BIN
-INSTALL_BIN=${BS_INSTALL_BIN:-$INSTALL_BIN}
-
-# ENABLE_UNINSTALL can be overridden by the user environment variable BS_ENABLE_UNINSTALL
-ENABLE_UNINSTALL=${BS_ENABLE_UNINSTALL:-$ENABLE_UNINSTALL}
-
-# LOG_LEVEL can be overridden by the user environment variable BS_LOG_LEVEL
-LOG_LEVEL=${BS_LOG_LEVEL:-$LOG_LEVEL}
-
-# -----------------------------
-
-# Define the remaining path variables
-HAP_DIR="$APP_HOME/bootstrap"
-BAK_DIR="$HAP_DIR._bak_"
-NEW_DIR="$HAP_DIR._new_"
-BIN_DIR="$HAP_DIR/bin"
-CCH_DIR="$CACHE_HOME/bootstrap"
-TMP_DIR="$CCH_DIR/temp_install"
-APP_SCRIPT="$BIN_DIR/$APP_NAME"
-ARCHIVE_FILE="$CCH_DIR/release.tgz"
-LAST_CHECKED_FILE="$CCH_DIR/last_checked"
-
-# Helper function for logging
+# Helper functions for logging
 LOG_ERROR() {
     if [[ -n "$LOG_LEVEL" && "0" -le "$LOG_LEVEL" ]]; then
       echo "\033[31mERROR\033[0m: $1"
@@ -70,13 +36,13 @@ LOG_ERROR() {
 
 LOG_WARN() {
     if [[ -n "$LOG_LEVEL" && "1" -le "$LOG_LEVEL" ]]; then
-      echo -e "[\033[33m$APP_NAME WARN\033[0m] $1"
+      echo -e "[\033[33m$APPNM WARN\033[0m] $1"
     fi
 }
 
 LOG_INFO() {
     if [[ -n "$LOG_LEVEL" && "2" -le "$LOG_LEVEL" ]]; then
-      echo "[$APP_NAME INFO] $1"
+      echo "[$APPNM INFO] $1"
     fi
 }
 
@@ -118,17 +84,17 @@ unpack_and_install() {
       LOG_INFO "Making application available in shared bin directory: $SHARED_BIN"
       mkdir -p "$SHARED_BIN"
       # We always copy the Bash script (it should exist), even on Windows
-      cp -a "$APP_SCRIPT" "$SHARED_BIN/$APP_NAME"
+      cp -a "$APP_SCRIPT" "$SHARED_BIN/$APPNM"
       if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]]; then
           # On Windows we also copy the batch file (if it exists)
           if [[ -f "$APP_SCRIPT.cmd" ]]; then
-              cp -a "$APP_SCRIPT.cmd" "$SHARED_BIN/$APP_NAME.cmd"
+              cp -a "$APP_SCRIPT.cmd" "$SHARED_BIN/$APPNM.cmd"
           fi
       fi
 
       # Warn user when the app is not available in their PATH
-      if [ ! -x "$(command -v "$APP_NAME")" ]; then
-          LOG_WARN "'$SHARED_BIN' is not in your PATH. You may want to add it to run '$APP_NAME' from anywhere."
+      if [ ! -x "$(command -v "$APPNM")" ]; then
+          LOG_WARN "'$SHARED_BIN' is not in your PATH. You may want to add it to run '$APPNM' from anywhere."
       fi
     fi
 
@@ -154,7 +120,7 @@ download_and_install() {
         # -z "$ARCHIVE_FILE" tells curl to only download if the remote file is newer than the local one.
         # --remote-time (-r) ensures the new file uses the remote timestamp.
         # Use -w "%{http_code}" to capture the status code
-        HTTP_CODE=$(curl -w "%{http_code}" -sSL --remote-time -z "$ARCHIVE_FILE" "$DOWNLOAD_URL" -o "$ARCHIVE_FILE")
+        HTTP_CODE=$(curl -w "%{http_code}" -sSL --remote-time -z "$ARCHIVE_FILE" "$DLURL" -o "$ARCHIVE_FILE")
         LOG_INFO "Received HTTP code: $HTTP_CODE"
 
         # Check for successful download (HTTP 200) or successful conditional skip (HTTP 304 Not Modified)
@@ -181,11 +147,23 @@ download_and_install() {
     fi
 }
 
-# --- Execution Flow ---
+function install_app() {
+  LOG_INFO "Check for executable $APP_SCRIPT"
+  if [ ! -f "$APP_SCRIPT" ]; then
+      LOG_INFO "Application not found. Starting download and install..."
+      download_and_install
+      if [[ $? -ne 0 ]]; then
+          LOG_ERROR "Installation of application failed!"
+          exit 1
+      fi
+  else
+      LOG_INFO "Application found. Check if there is an update to install..."
+      download_and_install
+  fi
+}
 
-# Check if uninstall was requested
-if [[ "$ENABLE_UNINSTALL" == "yes" && "$#" -eq 1 && "$1" == "__UNINSTALL" ]]; then
-    LOG_INFO "Uninstalling application $APP_NAME..."
+function uninstall_app() {
+    LOG_INFO "Uninstalling application $APPNM..."
     # Remove APP_HOME/bootstrap
     rm -rf "$HAP_DIR" 2>/dev/null || true
     # Remove APP_HOME if it's now empty
@@ -194,38 +172,78 @@ if [[ "$ENABLE_UNINSTALL" == "yes" && "$#" -eq 1 && "$1" == "__UNINSTALL" ]]; th
     rm -rf "$CACHE_HOME" 2>/dev/null || true
     # Remove shared bin scripts if installed
     if [[ "$INSTALL_BIN" == "yes" ]]; then
-        rm -f "$SHARED_BIN/$APP_NAME" 2>/dev/null || true
-        rm -f "$SHARED_BIN/$APP_NAME.cmd" 2>/dev/null || true
+        rm -f "$SHARED_BIN/$APPNM" 2>/dev/null || true
+        rm -f "$SHARED_BIN/$APPNM.cmd" 2>/dev/null || true
     fi
     LOG_INFO "Uninstallation complete."
-    exit 0
+}
+
+function perform() {
+    local action="$1"
+    local APPNM="$2"
+    local APPDR="$3"
+    local DLURL="$4"
+
+    # Define essential directories
+    APP_HOME="$HOME_DIR/.local/share/$APPDR"
+    CONFIG_HOME="$HOME_DIR/.config/$APPDR"
+    CACHE_HOME="$HOME_DIR/.cache/$APPDR"
+
+    # Load user-wide configuration (if exists)
+    load_config "$CONFIG_HOME/bootstrap.cfg"
+
+    # Load local configuration (if exists)
+    load_config "./.$APPDR/bootstrap.cfg"
+
+    # INSTALL_BIN can be overridden by the user environment variable BS_INSTALL_BIN
+    INSTALL_BIN=${BS_INSTALL_BIN:-$INSTALL_BIN}
+
+    # ENABLE_UNINSTALL can be overridden by the user environment variable BS_ENABLE_UNINSTALL
+    ENABLE_UNINSTALL=${BS_ENABLE_UNINSTALL:-$ENABLE_UNINSTALL}
+
+    # LOG_LEVEL can be overridden by the user environment variable BS_LOG_LEVEL
+    LOG_LEVEL=${BS_LOG_LEVEL:-$LOG_LEVEL}
+
+    HAP_DIR="$APP_HOME/bootstrap"
+    BAK_DIR="$HAP_DIR._bak_"
+    NEW_DIR="$HAP_DIR._new_"
+    BIN_DIR="$HAP_DIR/bin"
+    CCH_DIR="$CACHE_HOME/bootstrap"
+    TMP_DIR="$CCH_DIR/temp_install"
+    APP_SCRIPT="$BIN_DIR/$APPNM"
+    ARCHIVE_FILE="$CCH_DIR/release.tgz"
+    LAST_CHECKED_FILE="$CCH_DIR/last_checked"
+
+    case "$action" in
+        install_app)
+            install_app
+            ;;
+        uninstall_app)
+            if [[ "$ENABLE_UNINSTALL" == "yes" ]]; then
+                uninstall_app
+                exit 0
+            fi
+            ;;
+    esac
+}
+
+# Check if uninstall was requested
+if [[ "$#" -eq 1 && "$1" == "__UNINSTALL" ]]; then
+    perform "uninstall_app" "$APP_NAME" "$APP_DIR" "$DOWNLOAD_URL"
 fi
 
 # Installation/Update Check
-LOG_INFO "Check for executable $APP_SCRIPT"
-if [ ! -f "$APP_SCRIPT" ]; then
-    LOG_INFO "Application not found. Starting download and install..."
-    download_and_install
-    if [[ $? -ne 0 ]]; then
-        LOG_ERROR "Installation of application failed!"
-        exit 1
-    fi
-else
-    LOG_INFO "Application found. Check if there is an update to install..."
-    download_and_install
-fi
+perform "install_app" "$APP_NAME" "$APP_DIR" "$DOWNLOAD_URL"
 
-# Execution Handover (The final requirement)
+# Execution Handover
 # Check if the currently executing script is NOT the application itself
-# Use realpath to resolve symbolic links and get the canonical path
+APPNM="$APP_NAME"
+APP_SCRIPT="$HOME_DIR/.local/share/$APP_DIR/bootstrap/bin/$APP_NAME"
 CURRENT_SCRIPT_PATH=$(realpath "$0")
 BIN_EXE_PATH1=$(realpath "$APP_SCRIPT")
 BIN_EXE_PATH2=$(realpath "$SHARED_BIN/$APP_NAME")
-
-# Check if the current script path is NOT the path of the actual application executable
 if [[ "$CURRENT_SCRIPT_PATH" != "$BIN_EXE_PATH1" && "$CURRENT_SCRIPT_PATH" != "$BIN_EXE_PATH2" ]]; then
     LOG_INFO "Handing over execution to the installed application: $APP_SCRIPT"
-    # exec replaces the current script process with the application process
     exec "$APP_SCRIPT" "$@"
 fi
 
@@ -233,16 +251,15 @@ fi
 # BELOW THIS POINT YOU PUT YOUR OWN CODE #
 ##########################################
 
-# This part is the "whatever might be there" section.
-LOG_INFO "Running inside the application's environment [$BIN_DIR]"
-
 # Your application's main logic or final execution step would go here if this script
 # *is* the final executable. Otherwise you can call out to other scripts or binaries as needed.
+
+LOG_INFO "This would be your application."
 
 # For simplicity, we just print a success message and exit.
 echo "------------------------------------"
 echo "This is application: $APP_NAME"
-echo "Arguments received : $@"
+echo "Arguments received : $*"
 echo "------------------------------------"
 
 exit 0
