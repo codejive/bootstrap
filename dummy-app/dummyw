@@ -7,6 +7,8 @@ DOWNLOAD_URL="https://github.com/codejive/bootstrap/releases/latest/download/rel
 # ----------------------------------------
 # Should we install the wrapper scripts into the user's shared bin directory?
 INSTALL_BIN=no
+# Do we enable the install feature? (ie passing the single argument '__INSTALL' to this script)
+ENABLE_INSTALL=yes
 # Do we enable the uninstall feature? (ie passing the single argument '__UNINSTALL' to this script)
 ENABLE_UNINSTALL=yes
 # The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
@@ -19,7 +21,7 @@ HOME_DIR="$HOME"
 SHARED_BIN="$HOME_DIR/.local/bin"
 
 # Function to load configuration variables from a file
-load_config() {
+function load_config() {
     local config_file="$1"
     if [ -f "$config_file" ]; then
         #LOG "Loading configuration from $config_file..."
@@ -28,19 +30,19 @@ load_config() {
 }
 
 # Helper functions for logging
-LOG_ERROR() {
+function LOG_ERROR() {
     if [[ -n "$LOG_LEVEL" && "0" -le "$LOG_LEVEL" ]]; then
       echo "\033[31mERROR\033[0m: $1"
     fi
 }
 
-LOG_WARN() {
+function LOG_WARN() {
     if [[ -n "$LOG_LEVEL" && "1" -le "$LOG_LEVEL" ]]; then
       echo -e "[\033[33m$APPNM WARN\033[0m] $1"
     fi
 }
 
-LOG_INFO() {
+function LOG_INFO() {
     if [[ -n "$LOG_LEVEL" && "2" -le "$LOG_LEVEL" ]]; then
       echo "[$APPNM INFO] $1"
     fi
@@ -48,7 +50,26 @@ LOG_INFO() {
 
 # --- Core Logic Functions ---
 
-unpack_and_install() {
+function install_bin() {
+    # Copy application script(s) to shared bin
+    LOG_INFO "Making application available in shared bin directory: $SHARED_BIN"
+    mkdir -p "$SHARED_BIN"
+    # We always copy the Bash script (it should exist), even on Windows
+    cp -a "$APP_SCRIPT" "$SHARED_BIN/$APPNM"
+    if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]]; then
+        # On Windows we also copy the batch file (if it exists)
+        if [[ -f "$APP_SCRIPT.cmd" ]]; then
+            cp -a "$APP_SCRIPT.cmd" "$SHARED_BIN/$APPNM.cmd"
+        fi
+    fi
+
+    # Warn user when the app is not available in their PATH
+    if [ ! -x "$(command -v "$APPNM")" ]; then
+        LOG_WARN "'$SHARED_BIN' is not in your PATH. You may want to add it to run '$APPNM' from anywhere."
+    fi
+}
+
+function unpack_and_install() {
     # Unpack and clean up
     LOG_INFO "Unpacking application..."
 
@@ -80,22 +101,7 @@ unpack_and_install() {
     fi
 
     if [[ "$INSTALL_BIN" == "yes" ]]; then
-      # Copy application script(s) to shared bin
-      LOG_INFO "Making application available in shared bin directory: $SHARED_BIN"
-      mkdir -p "$SHARED_BIN"
-      # We always copy the Bash script (it should exist), even on Windows
-      cp -a "$APP_SCRIPT" "$SHARED_BIN/$APPNM"
-      if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]]; then
-          # On Windows we also copy the batch file (if it exists)
-          if [[ -f "$APP_SCRIPT.cmd" ]]; then
-              cp -a "$APP_SCRIPT.cmd" "$SHARED_BIN/$APPNM.cmd"
-          fi
-      fi
-
-      # Warn user when the app is not available in their PATH
-      if [ ! -x "$(command -v "$APPNM")" ]; then
-          LOG_WARN "'$SHARED_BIN' is not in your PATH. You may want to add it to run '$APPNM' from anywhere."
-      fi
+        install_bin
     fi
 
     # Clean up the temporary directory
@@ -106,7 +112,7 @@ unpack_and_install() {
     LOG_INFO "Installation complete in $APP_HOME"
 }
 
-download_and_install() {
+function download_and_install() {
     # Check file age: older than $UPDATE_PERIOD days?
     # find command exits 0 and prints if a file matching criteria is found.
     # -mtime +N means modification time is older than N full 24-hour periods.
@@ -198,6 +204,9 @@ function perform() {
     # INSTALL_BIN can be overridden by the user environment variable BS_INSTALL_BIN
     INSTALL_BIN=${BS_INSTALL_BIN:-$INSTALL_BIN}
 
+    # ENABLE_INSTALL can be overridden by the user environment variable BS_ENABLE_INSTALL
+    ENABLE_INSTALL=${BS_ENABLE_INSTALL:-$ENABLE_INSTALL}
+
     # ENABLE_UNINSTALL can be overridden by the user environment variable BS_ENABLE_UNINSTALL
     ENABLE_UNINSTALL=${BS_ENABLE_UNINSTALL:-$ENABLE_UNINSTALL}
 
@@ -218,6 +227,12 @@ function perform() {
         install_app)
             install_app
             ;;
+        install_bin)
+            if [[ "$ENABLE_INSTALL" == "yes" ]]; then
+                install_bin
+                exit 0
+            fi
+            ;;
         uninstall_app)
             if [[ "$ENABLE_UNINSTALL" == "yes" ]]; then
                 uninstall_app
@@ -226,6 +241,11 @@ function perform() {
             ;;
     esac
 }
+
+# Check if install of scripts was requested
+if [[ "$#" -eq 1 && "$1" == "__INSTALL" ]]; then
+    perform "install_bin" "$APP_NAME" "$APP_DIR" "$DOWNLOAD_URL"
+fi
 
 # Check if uninstall was requested
 if [[ "$#" -eq 1 && "$1" == "__UNINSTALL" ]]; then

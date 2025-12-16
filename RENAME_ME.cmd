@@ -8,6 +8,8 @@ set DOWNLOAD_URL=https://example.com/releases/.../rename-me-latest.zip
 rem ---------------------------------------
 rem Should we install the wrapper scripts into the user's shared bin directory?
 set INSTALL_BIN=no
+rem Do we enable the install feature? (ie passing the single argument '__INSTALL' to this script)
+set ENABLE_INSTALL=yes
 rem Do we enable the uninstall feature? (ie passing the single argument '__UNINSTALL' to this script)
 set ENABLE_UNINSTALL=yes
 rem The update period in days (e.g., 3 means check if the last_checked file is older than 3 days)
@@ -55,6 +57,24 @@ rem Helper functions for logging
     )
     goto :eof
 
+:INSTALL_BIN
+    rem Copy application script(s) to shared bin
+    call :LOG_INFO "Making application available in shared bin directory: %SHARED_BIN%"
+    if not exist "%SHARED_BIN%" mkdir "%SHARED_BIN%"
+    rem We always copy the Bash script (if it exists), even on Windows
+    if exist "%APP_SCRIPT%" (
+        copy /Y "%APP_SCRIPT%" "%SHARED_BIN%\%APPNM%" > nul
+    )
+    rem We also copy the batch file (it should exist)
+    copy /Y "%APP_SCRIPT%.cmd" "%SHARED_BIN%\%APPNM%.cmd" > nul
+
+    rem Warn user when the app is not available in their PATH
+    where /q "%APPNM%" 2>nul
+    if errorlevel 1 (
+        call :LOG_WARN "'%SHARED_BIN%' is not in your PATH. You may want to add it to run '%APPNM%' from anywhere."
+    )
+    goto :eof
+
 :UNPACK_AND_INSTALL
     set "RETURN_CODE=0"
 
@@ -91,23 +111,7 @@ rem Helper functions for logging
     )
 
     if "%INSTALL_BIN%"=="yes" (
-        rem Copy application script(s) to shared bin
-        if defined SHARED_BIN (
-            call :LOG_INFO "Making application available in shared bin directory: %SHARED_BIN%"
-            if not exist "%SHARED_BIN%" mkdir "%SHARED_BIN%"
-            rem We always copy the Bash script (if it exists), even on Windows
-            if exist "%APP_SCRIPT%" (
-                copy /Y "%APP_SCRIPT%" "%SHARED_BIN%\%APPNM%" > nul
-            )
-            rem We also copy the batch file (it should exist)
-            copy /Y "%APP_SCRIPT%.cmd" "%SHARED_BIN%\%APPNM%.cmd" > nul
-        )
-
-        rem Warn user when the app is not available in their PATH
-        where /q "%APPNM%" 2>nul
-        if errorlevel 1 (
-            call :LOG_WARN "'%SHARED_BIN%' is not in your PATH. You may want to add it to run '%APPNM%' from anywhere."
-        )
+        call :INSTALL_BIN
     )
 
     rem Clean up the temporary directory
@@ -261,6 +265,11 @@ rem Helper functions for logging
 
     if "%action%"=="install_app" (
         call :INSTALL_APP
+    ) else if "%action%"=="install_bin" (
+        if "%ENABLE_INSTALL%"=="yes" (
+            call :INSTALL_BIN
+            (goto) 2>nul & exit /b 0
+        )
     ) else if "%action%"=="uninstall_app" (
         if "%ENABLE_UNINSTALL%"=="yes" (
             call :UNINSTALL_APP
@@ -271,6 +280,11 @@ rem Helper functions for logging
     goto :eof
 
 :START
+
+rem Check if install of scripts was requested
+if "%~1"=="__INSTALL" if "%~2"=="" (
+    call :PERFORM "install_bin" "%APP_NAME%" "%APP_DIR%" "%DOWNLOAD_URL%"
+)
 
 rem Check if uninstall was requested
 if "%~1"=="__UNINSTALL" if "%~2"=="" (

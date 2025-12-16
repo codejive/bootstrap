@@ -52,6 +52,7 @@ The format for the configuration files is simple `KEY=VALUE`, with comments star
 | Variable             | Default Value | Description                                                                                                                                                                                                         |
 |:---------------------|:--------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **INSTALL_BIN**      | no            | Determines if the wrapper scripts should be installed to the user's shared bin folder. Disabled by default, set to "yes" to enable. Can be temporarily overridden on the command line with `BS_INSTALL_BIN`.        |
+| **ENABLE_INSTALL**   | yes           | Determines if the install feature should be enabled or not. Enabled by default, set to "no" (or anything besides "yes") to disable. Can be temporarily overridden on the command line with `BS_ENABLE_INSTALL`.     |
 | **ENABLE_UNINSTALL** | yes           | Determines if the uninstall feature should be enabled or not. Enabled by default, set to "no" (or anything besides "yes") to disable. Can be temporarily overridden on the command line with `BS_ENABLE_UNINSTALL`. |
 | **UPDATE_PERIOD**    | 3             | The number of days after which an update check must be performed. If the last\_checked file is older than this period, the script will attempt to contact the server.                                               |
 | **LOG_LEVEL**        | 1             | Logging level. 0 = ERROR, 1 = WARN, 2 = INFO, 3 = DEBUG. Can be temporarily overridden on the command line with `BS_LOG_LEVEL`.                                                                                     |
@@ -128,6 +129,17 @@ After the preparation has been completed and the release archive has been upload
 ```
 
 The first time you run it, the application will download and install itself to the user’s home directory (`$HOME/$APP_DIR`). Subsequent runs will check for updates if the configured period has passed.
+
+### **Making application globally available**
+
+If the installation feature is enabled (`ENABLE_INSTALL=yes`), you can install the application's scripts to the user's shared bin folder (which on Linux and Mac is normally already available in the user's `PATH`) by running the script with a single `__INSTALL` argument (capital letters required!):
+
+```# On Linux/Mac  
+./foow __INSTALL
+
+# On Windows  
+.\foow.cmd __INSTALL
+```
 
 ### **Uninstallation**
 
